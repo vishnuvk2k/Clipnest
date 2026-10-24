@@ -1,4 +1,4 @@
-"""Renders the Fetchly logo to assets/fetchly.ico (Windows) and assets/fetchly.png.
+"""Renders the Clipnest logo to assets/clipnest.ico (Windows) and assets/clipnest.png.
 
 Run from the repo root: python tools/make_icon.py
 """
@@ -15,7 +15,7 @@ from PIL import Image
 from PySide6.QtCore import QBuffer, QIODevice
 from PySide6.QtGui import QGuiApplication
 
-from fetchly import theme
+from clipnest import theme
 
 app = QGuiApplication([])
 assets = Path(__file__).resolve().parent.parent / "assets"
@@ -33,7 +33,7 @@ def render(size: int) -> Image.Image:
 
 sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 images = [render(s) for s in sizes]
-images[-1].save(assets / "fetchly.ico", sizes=[(s, s) for s in sizes], append_images=images[:-1])
-render(512).save(assets / "fetchly.png")
-(assets / "fetchly.svg").write_text(theme.LOGO_SVG)
+images[-1].save(assets / "clipnest.ico", sizes=[(s, s) for s in sizes], append_images=images[:-1])
+render(512).save(assets / "clipnest.png")
+(assets / "clipnest.svg").write_text(theme.LOGO_SVG)
 print("wrote", ", ".join(p.name for p in sorted(assets.iterdir())))

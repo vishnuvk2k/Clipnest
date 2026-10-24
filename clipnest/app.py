@@ -1,4 +1,4 @@
-"""Fetchly's main window."""
+"""Clipnest's main window."""
 
 from __future__ import annotations
 
@@ -299,8 +299,8 @@ class DownloadPage(QWidget):
         self.engine_ready = False
 
         # Header
-        h1 = label("What do you want to fetch?", "H1")
-        sub = label("Paste a YouTube or Instagram link. Fetchly saves the original file, "
+        h1 = label("What do you want to save?", "H1")
+        sub = label("Paste a YouTube or Instagram link. Clipnest saves the original file, "
                     "with no watermark.", "Sub", wrap=True)
 
         # Engine setup banner
@@ -459,7 +459,7 @@ class DownloadPage(QWidget):
         elif error:
             self.setup_box.show()
             self.setup_text.setText("Couldn't set up the download engine: " + error +
-                                    "\nCheck your internet connection and restart Fetchly.")
+                                    "\nCheck your internet connection and restart Clipnest.")
             self.setup_text.setObjectName("Error")
             self.setup_text.setWordWrap(True)
             repolish(self.setup_text)
@@ -507,7 +507,7 @@ class DownloadPage(QWidget):
         fmt = self.fmt()
         q = self.settings[f"{fmt}_quality"]
         text = QUALITY_LABELS[fmt][q][0]
-        self.go.setText(f"  Fetch {fmt.upper()} · {text}")
+        self.go.setText(f"  Download {fmt.upper()} · {text}")
         self.go.setEnabled(self.engine_ready)
 
     def change_dir(self) -> None:
@@ -574,14 +574,14 @@ class DownloadPage(QWidget):
     def on_info_error(self, proc: QProcess, url: str, err) -> None:
         if err == QProcess.FailedToStart and proc is self.info_proc:
             self.info_proc = None
-            self.show_link_error(url, "Couldn't start the download engine. Restart Fetchly.")
+            self.show_link_error(url, "Couldn't start the download engine. Restart Clipnest.")
 
     def on_info_timeout(self, proc: QProcess, url: str) -> None:
         if proc is self.info_proc and proc.state() != QProcess.NotRunning:
             self.info_proc = None
             proc.kill()
             self.show_link_error(url, "Looking up this link took too long. You can still "
-                                      "press Fetch to try downloading it.")
+                                      "press Download to try anyway.")
 
     def show_link_error(self, url: str, text: str) -> None:
         if url != self.link.text().strip():
@@ -737,7 +737,7 @@ class HistoryPage(QWidget):
         clear.clicked.connect(self.clear)
         self.list_box = vbox(spacing=10)
         lay = vbox(hbox(label("History", "H1"), None, clear), 8,
-                   label("Everything you've downloaded with Fetchly.", "Sub"), 28,
+                   label("Everything you've downloaded with Clipnest.", "Sub"), 28,
                    self.list_box, None)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -836,7 +836,7 @@ class SettingsPage(QWidget):
         auto_paste = QCheckBox("Fill in links I copy automatically")
         auto_paste.setChecked(settings["auto_paste"])
         auto_paste.toggled.connect(lambda on: self.settings.set("auto_paste", on))
-        auto_update = QCheckBox("Update the download engine when Fetchly starts")
+        auto_update = QCheckBox("Update the download engine when Clipnest starts")
         auto_update.setChecked(settings["auto_update"])
         auto_update.toggled.connect(lambda on: self.settings.set("auto_update", on))
 
@@ -856,7 +856,7 @@ class SettingsPage(QWidget):
             section("Logins",
                     label("Private Instagram posts, and YouTube when it asks you to confirm "
                           "you're not a bot, need you to be logged in. Choose the browser "
-                          "where you're logged in and Fetchly will use that login. "
+                          "where you're logged in and Clipnest will use that login. "
                           "Close that browser first if downloads fail.", "Small", wrap=True),
                     14, hbox(self.browser, None)),
             20,
@@ -865,10 +865,10 @@ class SettingsPage(QWidget):
             section("Download engine",
                     engine_row,
                     10,
-                    label("Fetchly uses yt-dlp, FFmpeg and Deno (all free and open source) to "
+                    label("Clipnest uses yt-dlp, FFmpeg and Deno (all free and open source) to "
                           "download and convert files.", "Small", wrap=True)),
             20,
-            section(f"About Fetchly {__version__}",
+            section(f"About Clipnest {__version__}",
                     label("Made by <b>Vishnu VK</b>, built with <b>Claude Code</b>.", None),
                     8,
                     label("Free and open source. Please download only content you have "
@@ -895,7 +895,7 @@ class SettingsPage(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Fetchly")
+        self.setWindowTitle("Clipnest")
         self.setWindowIcon(theme.app_icon())
         self.resize(1200, 860)
         self.setMinimumSize(760, 560)
@@ -910,7 +910,7 @@ class MainWindow(QMainWindow):
         side.setFixedWidth(240)
         logo = QLabel()
         logo.setPixmap(theme.logo_pixmap(34))
-        brand = label("Fetchly", "Brand")
+        brand = label("Clipnest", "Brand")
         self.nav_download = NavButton("download", "Download")
         self.nav_history = NavButton("history", "History")
         self.nav_settings = NavButton("settings", "Settings")
@@ -1021,10 +1021,10 @@ class MainWindow(QMainWindow):
 
 
 def _native_window_icon(window: QWidget) -> None:
-    """Gives the taskbar the icon built into Fetchly.exe.
+    """Gives the taskbar the icon built into Clipnest.exe.
 
     Qt's own window icon sometimes doesn't reach the Windows taskbar, which
-    then shows a blank default icon instead of the Fetchly logo.
+    then shows a blank default icon instead of the Clipnest logo.
     """
     if not (engine.IS_WINDOWS and getattr(sys, "frozen", False)):
         return
@@ -1081,16 +1081,16 @@ def main() -> int:
     if engine.IS_WINDOWS:
         import ctypes
         # Own taskbar icon instead of Python's.
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Fetchly.App")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Clipnest.App")
     app = QApplication(sys.argv)
-    app.setApplicationName("Fetchly")
-    app.setApplicationDisplayName("Fetchly")
+    app.setApplicationName("Clipnest")
+    app.setApplicationDisplayName("Clipnest")
     app.setWindowIcon(theme.app_icon())
     font = QFont("Segoe UI Variable Text" if engine.IS_WINDOWS else app.font().family())
     font.setPixelSize(14)
     app.setFont(font)
     app.setStyle("Fusion")
-    app.setStyleSheet(theme.STYLESHEET.replace(":/fetchly/check.svg", _write_check_icon()))
+    app.setStyleSheet(theme.STYLESHEET.replace(":/clipnest/check.svg", _write_check_icon()))
     win = MainWindow()
     win.show()
     return app.exec()

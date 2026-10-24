@@ -1,7 +1,7 @@
-<p align="center"><img src="assets/fetchly.png" width="112" alt="Fetchly logo"></p>
+<p align="center"><img src="assets/clipnest.png" width="112" alt="Clipnest logo"></p>
 
-<h1 align="center">Fetchly</h1>
-<p align="center"><em>Say it: FETCH-lee</em><br>A free, open-source desktop app to save YouTube and Instagram media as MP3 or MP4.</p>
+<h1 align="center">Clipnest</h1>
+<p align="center"><em>Say it: CLIP-nest</em><br>A free, open-source desktop app to save YouTube and Instagram media as MP3 or MP4.</p>
 
 ## Features
 
@@ -12,21 +12,21 @@
   can't be downloaded directly: use a Reel that uses the sound)
 - Original files, **no watermark**, no ads, no account
 - Download queue with progress, history, and auto-paste of copied links
-- The download engine (yt-dlp) **updates itself** when Fetchly starts, so it keeps working when sites change
+- The download engine (yt-dlp) **updates itself** when Clipnest starts, so it keeps working when sites change
 
 ## Download
 
 From the [Releases](../../releases) page, get either:
 
-- **`Fetchly-Setup-<version>.exe`** (recommended): a setup wizard that lets you choose the
+- **`Clipnest-Setup-<version>.exe`** (recommended): a setup wizard that lets you choose the
   install folder, accept the license, and add Start Menu and desktop shortcuts. Uninstall from
   Windows Settings → Apps.
-- **`Fetchly-Portable.exe`**: one file, no install. Starts a little slower.
+- **`Clipnest-Portable.exe`**: one file, no install. Starts a little slower.
 
 Downloads are saved to your Windows **Downloads** folder (change it in Settings).
 
-On first launch Fetchly downloads its engine (yt-dlp, FFmpeg and Deno, about 150 MB) into
-`%LOCALAPPDATA%\Fetchly`. After that it works offline apart from the downloads themselves.
+On first launch Clipnest downloads its engine (yt-dlp, FFmpeg and Deno, about 150 MB) into
+`%LOCALAPPDATA%\Clipnest`. After that it works offline apart from the downloads themselves.
 
 > Windows SmartScreen may warn about an unknown publisher because the app isn't code-signed.
 > Click **More info → Run anyway**.
@@ -43,19 +43,19 @@ On first launch Fetchly downloads its engine (yt-dlp, FFmpeg and Deno, about 150
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
-python Fetchly.py
+python Clipnest.py
 ```
 
-You need FFmpeg and yt-dlp: on Windows Fetchly downloads both itself. On macOS/Linux install
-FFmpeg with your package manager (`brew install ffmpeg`, `sudo apt install ffmpeg`); Fetchly
+You need FFmpeg and yt-dlp: on Windows Clipnest downloads both itself. On macOS/Linux install
+FFmpeg with your package manager (`brew install ffmpeg`, `sudo apt install ffmpeg`); Clipnest
 downloads yt-dlp.
 
 Run the tests with `python -m pytest`. To build on Windows:
 
 ```bat
-pyinstaller fetchly.spec                                  :: app folder in dist\Fetchly\
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\fetchly.iss   :: dist\Fetchly-Setup-<version>.exe
-set FETCHLY_ONEFILE=1 && pyinstaller fetchly.spec          :: portable dist\Fetchly.exe
+pyinstaller clipnest.spec                                  :: app folder in dist\Clipnest\
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\clipnest.iss   :: dist\Clipnest-Setup-<version>.exe
+set CLIPNEST_ONEFILE=1 && pyinstaller clipnest.spec          :: portable dist\Clipnest.exe
 ```
 
 GitHub Actions builds the installer and the portable exe on every push, and attaches both to a
@@ -66,23 +66,23 @@ release when you push a tag such as `v1.0.1`. The installer artwork is generated
 
 | File | What it does |
 |---|---|
-| `fetchly/app.py` | The window: download page, history, settings |
-| `fetchly/downloads.py` | Runs downloads in the background, two at a time, with a queue |
-| `fetchly/jobs.py` | Builds yt-dlp commands for each format and reads its progress |
-| `fetchly/engine.py` | Installs and updates yt-dlp and FFmpeg |
-| `fetchly/store.py` | Saves settings and history |
-| `fetchly/theme.py` | Colors, styles, icons and the logo |
+| `clipnest/app.py` | The window: download page, history, settings |
+| `clipnest/downloads.py` | Runs downloads in the background, two at a time, with a queue |
+| `clipnest/jobs.py` | Builds yt-dlp commands for each format and reads its progress |
+| `clipnest/engine.py` | Installs and updates yt-dlp and FFmpeg |
+| `clipnest/store.py` | Saves settings and history |
+| `clipnest/theme.py` | Colors, styles, icons and the logo |
 
 ## Responsible use
 
-Fetchly is a tool. Download only content you own, that's licensed for reuse (for example
+Clipnest is a tool. Download only content you own, that's licensed for reuse (for example
 Creative Commons), or that you otherwise have the right to save. Respect creators' copyright and
-the terms of the sites you use. Fetchly isn't affiliated with YouTube, Google, Instagram or Meta.
+the terms of the sites you use. Clipnest isn't affiliated with YouTube, Google, Instagram or Meta.
 
 ## Credits and license
 
 Made by **Vishnu VK**, built with [Claude Code](https://claude.com/claude-code).
 
-Fetchly is MIT licensed (see [LICENSE](LICENSE)). It uses
+Clipnest is MIT licensed (see [LICENSE](LICENSE)). It uses
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), [FFmpeg](https://ffmpeg.org) (GPL build,
 downloaded separately at runtime) and [Qt for Python](https://www.qt.io/qt-for-python) (LGPL).

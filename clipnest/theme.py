@@ -1,4 +1,4 @@
-"""Colors, the Qt stylesheet and the SVG icons, matching the Fetchly design."""
+"""Colors, the Qt stylesheet and the SVG icons, matching the Clipnest design."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from PySide6.QtCore import QByteArray, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
-ACCENT = "#6E4EF7"        # Fetchly Violet
+ACCENT = "#6E4EF7"        # Clipnest Violet
 ACCENT_HOVER = "#7F63FF"
 ACCENT_SOFT = "#A897FF"
 ACCENT_TINT = "rgba(110, 78, 247, 0.14)"
@@ -93,7 +93,7 @@ def asset_path(name: str) -> Path:
 
 
 def app_icon() -> QIcon:
-    ico = asset_path("fetchly.ico")
+    ico = asset_path("clipnest.ico")
     if ico.exists():
         return QIcon(str(ico))
     ic = QIcon()
@@ -189,7 +189,7 @@ QPushButton:disabled {{ color: #6B6878; }}
 QCheckBox {{ spacing: 10px; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 4px; border: 1px solid #4A4757; background: #201F28; }}
 QCheckBox::indicator:hover {{ border-color: {ACCENT_SOFT}; }}
-QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; image: url(:/fetchly/check.svg); }}
+QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; image: url(:/clipnest/check.svg); }}
 
 QProgressBar {{ background: #2E2C39; border: 0; border-radius: 3px; max-height: 6px; min-height: 6px; }}
 QProgressBar::chunk {{ background: {ACCENT}; border-radius: 3px; }}

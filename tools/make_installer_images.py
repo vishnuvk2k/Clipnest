@@ -15,7 +15,7 @@ from PIL import Image
 from PySide6.QtCore import QBuffer, QIODevice, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QImage, QPainter
 
-from fetchly import theme
+from clipnest import theme
 
 app = QGuiApplication([])
 out = Path(__file__).resolve().parent.parent / "installer"
@@ -43,7 +43,7 @@ def side_panel(scale: float) -> QImage:
     f.setPixelSize(round(26 * scale))
     f.setBold(True)
     p.setFont(f)
-    p.drawText(QRectF(0, 182 * scale, w, 34 * scale), Qt.AlignCenter, "Fetchly")
+    p.drawText(QRectF(0, 182 * scale, w, 34 * scale), Qt.AlignCenter, "Clipnest")
     f.setPixelSize(round(11.5 * scale))
     f.setBold(False)
     p.setFont(f)

@@ -28,24 +28,24 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
       - name: Build app folder
-        run: pyinstaller --noconfirm fetchly.spec
+        run: pyinstaller --noconfirm clipnest.spec
       - name: Build installer
-        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\fetchly.iss'
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\clipnest.iss'
       - name: Build portable single-file exe
         run: |
-          $env:FETCHLY_ONEFILE = "1"
-          pyinstaller --noconfirm fetchly.spec
-          Move-Item dist\Fetchly.exe dist\Fetchly-Portable.exe
+          $env:CLIPNEST_ONEFILE = "1"
+          pyinstaller --noconfirm clipnest.spec
+          Move-Item dist\Clipnest.exe dist\Clipnest-Portable.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: Fetchly-windows
+          name: Clipnest-windows
           path: |
-            dist/Fetchly-Setup-*.exe
-            dist/Fetchly-Portable.exe
+            dist/Clipnest-Setup-*.exe
+            dist/Clipnest-Portable.exe
       - name: Attach to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/Fetchly-Setup-*.exe
-            dist/Fetchly-Portable.exe
+            dist/Clipnest-Setup-*.exe
+            dist/Clipnest-Portable.exe

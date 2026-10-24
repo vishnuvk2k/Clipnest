@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from fetchly.jobs import (
+from clipnest.jobs import (
     FILE_TAG, POSTPROCESS_TAG, PROGRESS_TAG, TITLE_TAG, JobOptions, build_args,
     detect_source, format_duration, friendly_error, parse_info, parse_line,
 )
@@ -110,14 +110,25 @@ def test_friendly_errors():
 
 
 def test_deno_runtime():
-    args = build_args("yt-dlp", opts(deno=r"C:\Fetchly\deno.exe"))
-    assert args[args.index("--js-runtimes") + 1] == r"deno:C:\Fetchly\deno.exe"
+    args = build_args("yt-dlp", opts(deno=r"C:\Clipnest\deno.exe"))
+    assert args[args.index("--js-runtimes") + 1] == r"deno:C:\Clipnest\deno.exe"
     assert "--js-runtimes" not in build_args("yt-dlp", opts())
 
 
 def test_instagram_audio_pages_are_explained():
-    from fetchly.jobs import unsupported_reason
+    from clipnest.jobs import unsupported_reason
     assert "Reel" in unsupported_reason("https://www.instagram.com/reels/audio/1847049089984134?x=1")
     assert unsupported_reason("https://instagram.com/audio/123/")
     assert unsupported_reason("https://www.instagram.com/reel/ABC123/") is None
     assert unsupported_reason("https://youtu.be/x") is None
+
+
+def test_old_default_folders_move_to_downloads(tmp_path, monkeypatch):
+    from pathlib import Path
+    from clipnest import engine, store
+    monkeypatch.setattr(engine, "data_dir", lambda: tmp_path)
+    old = str(Path.home() / "Music" / "Fetchly")
+    (tmp_path / "settings.json").write_text(json.dumps({"mp3_dir": old, "mp4_dir": "D:/Mine"}))
+    s = store.Settings()
+    assert s["mp3_dir"] == store.downloads_dir()
+    assert s["mp4_dir"] == "D:/Mine"

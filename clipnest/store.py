@@ -1,4 +1,4 @@
-"""Settings and download history, saved as JSON in Fetchly's data folder."""
+"""Settings and download history, saved as JSON in Clipnest's data folder."""
 
 from __future__ import annotations
 
@@ -38,7 +38,8 @@ def downloads_dir() -> str:
     return str(Path.home() / "Downloads")
 
 
-# Folders earlier versions picked automatically; moved to Downloads on upgrade.
+# Folders Fetchly (this app before 1.1) picked automatically; moved to
+# Downloads on upgrade.
 _OLD_DEFAULTS = {str(Path.home() / sub / "Fetchly")
                  for sub in ("Music", "Videos", "Downloads")}
 

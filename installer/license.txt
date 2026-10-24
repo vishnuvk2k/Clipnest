@@ -1,15 +1,15 @@
-FETCHLY - LICENSE AGREEMENT
+CLIPNEST - LICENSE AGREEMENT
 
-Please read the following before installing Fetchly.
+Please read the following before installing Clipnest.
 
 1. FREE AND OPEN SOURCE
 
-Fetchly is free, open-source software released under the MIT License (full
+Clipnest is free, open-source software released under the MIT License (full
 text below). You may use, copy, modify and share it at no cost.
 
 2. RESPONSIBLE USE
 
-Fetchly is a tool for saving media. By installing it, you agree that:
+Clipnest is a tool for saving media. By installing it, you agree that:
 
   - You will only download content you own, content that is licensed for
     reuse (for example Creative Commons or public domain), or content you
@@ -18,19 +18,19 @@ Fetchly is a tool for saving media. By installing it, you agree that:
     websites you use, including YouTube and Instagram.
   - You are responsible for how you use the files you download.
 
-Fetchly is not affiliated with, endorsed by or connected to YouTube, Google,
+Clipnest is not affiliated with, endorsed by or connected to YouTube, Google,
 Instagram or Meta.
 
 3. THIRD-PARTY COMPONENTS
 
-On first launch Fetchly downloads these free programs into your user folder
-(%LOCALAPPDATA%\Fetchly\engine):
+On first launch Clipnest downloads these free programs into your user folder
+(%LOCALAPPDATA%\Clipnest\engine):
 
   - yt-dlp (The Unlicense) - https://github.com/yt-dlp/yt-dlp
   - FFmpeg (GPL) - https://ffmpeg.org
   - Deno (MIT) - https://deno.com
 
-Fetchly is built with Qt for Python (LGPL) - https://www.qt.io/qt-for-python
+Clipnest is built with Qt for Python (LGPL) - https://www.qt.io/qt-for-python
 
 4. MIT LICENSE
 

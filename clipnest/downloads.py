@@ -88,7 +88,7 @@ class DownloadManager(QObject):
     def _launch(self, job: Job) -> None:
         ytdlp = engine.ytdlp_path()
         if ytdlp is None:
-            self._finish(job, "error", "The download engine is missing. Restart Fetchly.")
+            self._finish(job, "error", "The download engine is missing. Restart Clipnest.")
             return
         ffmpeg = engine.ffmpeg_path()
         job.opts.ffmpeg_dir = str(ffmpeg.parent) if ffmpeg else ""
@@ -178,7 +178,7 @@ class DownloadManager(QObject):
 
     def _failed_to_start(self, job: Job, err) -> None:
         if err == QProcess.FailedToStart:
-            self._finish(job, "error", "Couldn't start the download engine. Restart Fetchly.")
+            self._finish(job, "error", "Couldn't start the download engine. Restart Clipnest.")
 
     def _finish(self, job: Job, state: str, status: str) -> None:
         job.state = state

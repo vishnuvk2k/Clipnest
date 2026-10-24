@@ -12,10 +12,10 @@ from dataclasses import dataclass, field
 MP3_QUALITIES = ["320", "256", "192", "128"]          # kbps
 MP4_QUALITIES = ["2160", "1440", "1080", "720"]       # max height
 
-PROGRESS_TAG = "FETCHLY_DL"
-POSTPROCESS_TAG = "FETCHLY_PP"
-FILE_TAG = "FETCHLY_FILE"
-TITLE_TAG = "FETCHLY_TITLE"
+PROGRESS_TAG = "CLIPNEST_DL"
+POSTPROCESS_TAG = "CLIPNEST_PP"
+FILE_TAG = "CLIPNEST_FILE"
+TITLE_TAG = "CLIPNEST_TITLE"
 
 # Fields are separated by a tab, which never appears in yt-dlp's numbers.
 PROGRESS_TEMPLATE = (
@@ -57,7 +57,7 @@ def unsupported_reason(url: str) -> str | None:
     """A message for links we know can't be downloaded, before trying."""
     if _IG_AUDIO_RE.match(url.strip()):
         return ("Instagram audio pages can't be downloaded directly. Open a Reel that "
-                "uses this sound, copy that Reel's link, and fetch it as MP3.")
+                "uses this sound, copy that Reel's link, and download it as MP3.")
     return None
 
 
@@ -286,5 +286,5 @@ def friendly_error(log: str) -> str:
     if "video unavailable" in low or "not available" in low:
         return "This video isn't available (removed, private or blocked in your country)."
     if "ffmpeg" in low and "not found" in low:
-        return "FFmpeg is missing. Restart Fetchly to reinstall it."
+        return "FFmpeg is missing. Restart Clipnest to reinstall it."
     return msg

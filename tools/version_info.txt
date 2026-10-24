@@ -1,15 +1,15 @@
 VSVersionInfo(
-  ffi=FixedFileInfo(filevers=(1, 0, 2, 0), prodvers=(1, 0, 2, 0)),
+  ffi=FixedFileInfo(filevers=(1, 1, 0, 0), prodvers=(1, 1, 0, 0)),
   kids=[
     StringFileInfo([StringTable("040904B0", [
       StringStruct("CompanyName", "Vishnu VK"),
-      StringStruct("FileDescription", "Fetchly - YouTube and Instagram downloader"),
-      StringStruct("FileVersion", "1.0.2"),
-      StringStruct("InternalName", "Fetchly"),
+      StringStruct("FileDescription", "Clipnest - YouTube and Instagram downloader"),
+      StringStruct("FileVersion", "1.1.0"),
+      StringStruct("InternalName", "Clipnest"),
       StringStruct("LegalCopyright", "MIT License, (c) 2026 Vishnu VK"),
-      StringStruct("OriginalFilename", "Fetchly.exe"),
-      StringStruct("ProductName", "Fetchly"),
-      StringStruct("ProductVersion", "1.0.2"),
+      StringStruct("OriginalFilename", "Clipnest.exe"),
+      StringStruct("ProductName", "Clipnest"),
+      StringStruct("ProductVersion", "1.1.0"),
     ])]),
     VarFileInfo([VarStruct("Translation", [1033, 1200])]),
   ],

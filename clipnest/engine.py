@@ -1,8 +1,8 @@
 """Locates, installs and updates the download engine (yt-dlp + FFmpeg).
 
-Fetchly drives the standalone yt-dlp program instead of importing it as a
+Clipnest drives the standalone yt-dlp program instead of importing it as a
 library. That way yt-dlp can update itself (`yt-dlp -U`) whenever YouTube or
-Instagram change, without a new Fetchly release.
+Instagram change, without a new Clipnest release.
 """
 
 from __future__ import annotations
@@ -45,12 +45,20 @@ ProgressFn = Callable[[str, float], None]
 def data_dir() -> Path:
     if IS_WINDOWS:
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-        path = base / "Fetchly"
+        path, old = base / "Clipnest", base / "Fetchly"
     elif IS_MAC:
-        path = Path.home() / "Library" / "Application Support" / "Fetchly"
+        base = Path.home() / "Library" / "Application Support"
+        path, old = base / "Clipnest", base / "Fetchly"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-        path = base / "fetchly"
+        path, old = base / "clipnest", base / "fetchly"
+    if not path.exists() and old.is_dir():
+        # The app was called Fetchly before 1.1: keep its settings, history
+        # and downloaded engine.
+        try:
+            old.rename(path)
+        except OSError:
+            pass
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -66,7 +74,7 @@ def _exe(name: str) -> str:
 
 
 def ytdlp_path() -> Path | None:
-    """yt-dlp installed by Fetchly first (it can self-update), then PATH."""
+    """yt-dlp installed by Clipnest first (it can self-update), then PATH."""
     own = engine_dir() / _exe("yt-dlp")
     if own.exists():
         return own
@@ -106,7 +114,7 @@ def missing_parts() -> list[str]:
 
 
 def _download(url: str, label: str, progress: ProgressFn) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "Fetchly"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Clipnest"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         total = int(resp.headers.get("Content-Length") or 0)
         buf = io.BytesIO()
