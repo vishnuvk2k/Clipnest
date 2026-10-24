@@ -558,13 +558,36 @@ class DownloadPage(QWidget):
         env = QProcessEnvironment.systemEnvironment()
         env.insert("PYTHONIOENCODING", "utf-8")
         proc.setProcessEnvironment(env)
-        if engine.IS_WINDOWS:
-            from .downloads import _hide_console
-            proc.setCreateProcessArgumentsModifier(_hide_console)
-        args = info_args(str(engine.ytdlp_path()), url, self.settings["cookies_browser"])
+        deno = engine.deno_path()
+        args = info_args(str(engine.ytdlp_path()), url, self.settings["cookies_browser"],
+                         str(deno) if deno else "")
         proc.finished.connect(lambda code, _s, p=proc, u=url: self.on_info(p, u, code))
+        proc.errorOccurred.connect(lambda err, p=proc, u=url: self.on_info_error(p, u, err))
         self.info_proc = proc
         proc.start(args[0], args[1:])
+        # A lookup that hangs (network trouble) must not spin forever.
+        QTimer.singleShot(90_000, lambda p=proc, u=url: self.on_info_timeout(p, u))
+
+    def on_info_error(self, proc: QProcess, url: str, err) -> None:
+        if err == QProcess.FailedToStart and proc is self.info_proc:
+            self.info_proc = None
+            self.show_link_error(url, "Couldn't start the download engine. Restart Fetchly.")
+
+    def on_info_timeout(self, proc: QProcess, url: str) -> None:
+        if proc is self.info_proc and proc.state() != QProcess.NotRunning:
+            self.info_proc = None
+            proc.kill()
+            self.show_link_error(url, "Looking up this link took too long. You can still "
+                                      "press Fetch to try downloading it.")
+
+    def show_link_error(self, url: str, text: str) -> None:
+        if url != self.link.text().strip():
+            return
+        self.info_url = ""
+        self.preview.hide()
+        self.link_error.setText(text)
+        self.link_error.setWordWrap(True)
+        self.link_error.show()
 
     def show_preview_loading(self, url: str) -> None:
         self.preview.show()
@@ -986,6 +1009,37 @@ class MainWindow(QMainWindow):
     def showEvent(self, e):
         super().showEvent(e)
         _dark_title_bar(self)
+        _native_window_icon(self)
+
+
+def _native_window_icon(window: QWidget) -> None:
+    """Gives the taskbar the icon built into Fetchly.exe.
+
+    Qt's own window icon sometimes doesn't reach the Windows taskbar, which
+    then shows a blank default icon instead of the Fetchly logo.
+    """
+    if not (engine.IS_WINDOWS and getattr(sys, "frozen", False)):
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        user32.LoadImageW.restype = wintypes.HANDLE
+        user32.LoadImageW.argtypes = [wintypes.HINSTANCE, ctypes.c_void_p, wintypes.UINT,
+                                      ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM,
+                                        wintypes.LPARAM]
+        hinst = kernel32.GetModuleHandleW(None)
+        hwnd = int(window.winId())
+        # (ICON_BIG, SM_CXICON, SM_CYICON), (ICON_SMALL, SM_CXSMICON, SM_CYSMICON)
+        for which, mx, my in ((1, 11, 12), (0, 49, 50)):
+            handle = user32.LoadImageW(hinst, ctypes.c_void_p(1), 1,   # IMAGE_ICON, id 1
+                                       user32.GetSystemMetrics(mx), user32.GetSystemMetrics(my), 0)
+            if handle:
+                user32.SendMessageW(hwnd, 0x0080, which, handle)   # WM_SETICON
+    except Exception:
+        pass
 
 
 def _dark_title_bar(window: QWidget) -> None:

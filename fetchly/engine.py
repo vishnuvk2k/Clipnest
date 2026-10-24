@@ -26,6 +26,11 @@ YTDLP_URLS = {
     "darwin": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos",
     "linux": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux",
 }
+# yt-dlp needs a JavaScript runtime to read YouTube pages fully.
+DENO_WIN_URL = (
+    "https://github.com/denoland/deno/releases/latest/download/"
+    "deno-x86_64-pc-windows-msvc.zip"
+)
 FFMPEG_WIN_URL = (
     "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/"
     "ffmpeg-master-latest-win64-gpl.zip"
@@ -77,6 +82,14 @@ def ffmpeg_path() -> Path | None:
     return Path(found) if found else None
 
 
+def deno_path() -> Path | None:
+    own = engine_dir() / _exe("deno")
+    if own.exists():
+        return own
+    found = shutil.which("deno")
+    return Path(found) if found else None
+
+
 def is_own_ytdlp(path: Path | None) -> bool:
     return path is not None and path.parent == engine_dir()
 
@@ -87,6 +100,8 @@ def missing_parts() -> list[str]:
         parts.append("yt-dlp")
     if ffmpeg_path() is None:
         parts.append("ffmpeg")
+    if IS_WINDOWS and deno_path() is None:
+        parts.append("deno")
     return parts
 
 
@@ -128,11 +143,19 @@ def install_ffmpeg(progress: ProgressFn) -> None:
                 (engine_dir() / name).write_bytes(zf.read(member))
 
 
+def install_deno(progress: ProgressFn) -> None:
+    data = _download(DENO_WIN_URL, "Downloading the YouTube helper", progress)
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        (engine_dir() / "deno.exe").write_bytes(zf.read("deno.exe"))
+
+
 def install_missing(progress: ProgressFn) -> None:
     if ytdlp_path() is None:
         install_ytdlp(progress)
     if ffmpeg_path() is None:
         install_ffmpeg(progress)
+    if IS_WINDOWS and deno_path() is None:
+        install_deno(progress)
 
 
 def ytdlp_version() -> str | None:

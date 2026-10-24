@@ -107,3 +107,9 @@ def test_friendly_errors():
     assert "not a bot" in friendly_error("ERROR: [youtube] x: Sign in to confirm you're not a bot")
     assert "isn't supported" in friendly_error("ERROR: Unsupported URL: http://x")
     assert friendly_error("ERROR: something odd") == "something odd"
+
+
+def test_deno_runtime():
+    args = build_args("yt-dlp", opts(deno=r"C:\Fetchly\deno.exe"))
+    assert args[args.index("--js-runtimes") + 1] == r"deno:C:\Fetchly\deno.exe"
+    assert "--js-runtimes" not in build_args("yt-dlp", opts())

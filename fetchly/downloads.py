@@ -80,12 +80,20 @@ class DownloadManager(QObject):
         self.active_count_changed.emit(self.active_count())
 
     def _start(self, job: Job) -> None:
+        try:
+            self._launch(job)
+        except Exception as exc:   # never leave a job stuck on "Waiting…"
+            self._finish(job, "error", f"Couldn't start the download: {exc}")
+
+    def _launch(self, job: Job) -> None:
         ytdlp = engine.ytdlp_path()
         if ytdlp is None:
             self._finish(job, "error", "The download engine is missing. Restart Fetchly.")
             return
         ffmpeg = engine.ffmpeg_path()
         job.opts.ffmpeg_dir = str(ffmpeg.parent) if ffmpeg else ""
+        deno = engine.deno_path()
+        job.opts.deno = str(deno) if deno else ""
         args = build_args(str(ytdlp), job.opts)
 
         proc = QProcess(self)
@@ -93,9 +101,8 @@ class DownloadManager(QObject):
         env = QProcessEnvironment.systemEnvironment()
         env.insert("PYTHONIOENCODING", "utf-8")
         proc.setProcessEnvironment(env)
-        if engine.IS_WINDOWS:
-            # Hide the console window yt-dlp.exe would otherwise open.
-            proc.setCreateProcessArgumentsModifier(_hide_console)
+        # No console window flashes up on Windows: Qt starts child processes of
+        # a GUI app with CREATE_NO_WINDOW by itself.
         proc.readyReadStandardOutput.connect(lambda: self._read(job))
         proc.finished.connect(lambda code, _status: self._done(job, code))
         proc.errorOccurred.connect(lambda err: self._failed_to_start(job, err))
@@ -195,7 +202,3 @@ class DownloadManager(QObject):
             )
         else:
             proc.kill()
-
-
-def _hide_console(args) -> None:
-    args.flags |= engine.NO_WINDOW

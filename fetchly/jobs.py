@@ -62,6 +62,7 @@ class JobOptions:
     playlist: bool = False
     cookies_browser: str = ""     # "", "chrome", "edge", "firefox", "brave"
     ffmpeg_dir: str = ""
+    deno: str = ""                # path to deno, for YouTube
 
 
 def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
@@ -87,6 +88,8 @@ def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
         args += ["--ffmpeg-location", opts.ffmpeg_dir]
     if opts.cookies_browser:
         args += ["--cookies-from-browser", opts.cookies_browser]
+    if opts.deno:
+        args += ["--js-runtimes", f"deno:{opts.deno}"]
 
     if opts.fmt == "mp3":
         args += [
@@ -120,11 +123,13 @@ def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
     return args
 
 
-def info_args(ytdlp: str, url: str, cookies_browser: str = "") -> list[str]:
+def info_args(ytdlp: str, url: str, cookies_browser: str = "", deno: str = "") -> list[str]:
     args = [ytdlp, "--ignore-config", "-J", "--flat-playlist", "--no-warnings",
             "--encoding", "utf-8"]
     if cookies_browser:
         args += ["--cookies-from-browser", cookies_browser]
+    if deno:
+        args += ["--js-runtimes", f"deno:{deno}"]
     return args + ["--", url]
 
 

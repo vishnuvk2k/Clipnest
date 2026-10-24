@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from PySide6.QtCore import QByteArray, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
@@ -83,7 +86,16 @@ def icon(name: str, color: str = TEXT_2, size: int = 18, stroke: float = 2.0) ->
     return QIcon(svg_pixmap(svg, size))
 
 
+def asset_path(name: str) -> Path:
+    """Files under assets/, both from source and inside the PyInstaller build."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / "assets" / name
+
+
 def app_icon() -> QIcon:
+    ico = asset_path("fetchly.ico")
+    if ico.exists():
+        return QIcon(str(ico))
     ic = QIcon()
     for s in (16, 20, 24, 32):
         ic.addPixmap(svg_pixmap(LOGO_SMALL_SVG, s, 1.0))
