@@ -113,3 +113,11 @@ def test_deno_runtime():
     args = build_args("yt-dlp", opts(deno=r"C:\Fetchly\deno.exe"))
     assert args[args.index("--js-runtimes") + 1] == r"deno:C:\Fetchly\deno.exe"
     assert "--js-runtimes" not in build_args("yt-dlp", opts())
+
+
+def test_instagram_audio_pages_are_explained():
+    from fetchly.jobs import unsupported_reason
+    assert "Reel" in unsupported_reason("https://www.instagram.com/reels/audio/1847049089984134?x=1")
+    assert unsupported_reason("https://instagram.com/audio/123/")
+    assert unsupported_reason("https://www.instagram.com/reel/ABC123/") is None
+    assert unsupported_reason("https://youtu.be/x") is None

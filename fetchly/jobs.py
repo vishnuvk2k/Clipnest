@@ -50,6 +50,17 @@ def detect_source(url: str) -> str | None:
     return "Link"
 
 
+_IG_AUDIO_RE = re.compile(r"^https?://(www\.)?instagram\.com/(reels/)?audio/", re.IGNORECASE)
+
+
+def unsupported_reason(url: str) -> str | None:
+    """A message for links we know can't be downloaded, before trying."""
+    if _IG_AUDIO_RE.match(url.strip()):
+        return ("Instagram audio pages can't be downloaded directly. Open a Reel that "
+                "uses this sound, copy that Reel's link, and fetch it as MP3.")
+    return None
+
+
 @dataclass
 class JobOptions:
     url: str

@@ -8,7 +8,8 @@
 - **MP3 audio** at 320, 256, 192 or 128 kbps, with cover art and title/artist tags
 - **MP4 video** at 4K, 1440p, 1080p or 720p, with sound, optional subtitles
 - **YouTube** videos, Shorts, music and whole playlists
-- **Instagram** Reels and video posts, and Reel audio as MP3
+- **Instagram** Reels and video posts, and Reel audio as MP3 (Instagram's audio pages
+  can't be downloaded directly: use a Reel that uses the sound)
 - Original files, **no watermark**, no ads, no account
 - Download queue with progress, history, and auto-paste of copied links
 - The download engine (yt-dlp) **updates itself** when Fetchly starts, so it keeps working when sites change
@@ -22,7 +23,9 @@ From the [Releases](../../releases) page, get either:
   Windows Settings → Apps.
 - **`Fetchly-Portable.exe`**: one file, no install. Starts a little slower.
 
-On first launch Fetchly downloads its engine (yt-dlp and FFmpeg, about 100 MB) into
+Downloads are saved to your Windows **Downloads** folder (change it in Settings).
+
+On first launch Fetchly downloads its engine (yt-dlp, FFmpeg and Deno, about 150 MB) into
 `%LOCALAPPDATA%\Fetchly`. After that it works offline apart from the downloads themselves.
 
 > Windows SmartScreen may warn about an unknown publisher because the app isn't code-signed.
@@ -77,6 +80,8 @@ Creative Commons), or that you otherwise have the right to save. Respect creator
 the terms of the sites you use. Fetchly isn't affiliated with YouTube, Google, Instagram or Meta.
 
 ## Credits and license
+
+Made by **Vishnu VK**, built with [Claude Code](https://claude.com/claude-code).
 
 Fetchly is MIT licensed (see [LICENSE](LICENSE)). It uses
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), [FFmpeg](https://ffmpeg.org) (GPL build,

@@ -11,18 +11,44 @@ from . import engine
 MAX_HISTORY = 300
 
 
-def _default_dir(kind: str) -> str:
-    home = Path.home()
-    base = home / kind if (home / kind).is_dir() else home / "Downloads"
-    return str(base / "Fetchly")
+def downloads_dir() -> str:
+    """The user's Downloads folder, wherever Windows has it (it can be moved)."""
+    if engine.IS_WINDOWS:
+        try:
+            import ctypes
+            import uuid
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [("data", ctypes.c_byte * 16)]
+
+            folder_id = GUID()
+            folder_id.data[:] = uuid.UUID("374DE290-123F-4565-9164-39C4925E467B").bytes_le
+            path = ctypes.c_wchar_p()
+            shell32 = ctypes.windll.shell32
+            shell32.SHGetKnownFolderPath.argtypes = [
+                ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE, ctypes.POINTER(ctypes.c_wchar_p)]
+            if shell32.SHGetKnownFolderPath(ctypes.byref(folder_id), 0, None, ctypes.byref(path)) == 0:
+                result = path.value
+                ctypes.windll.ole32.CoTaskMemFree(path)
+                if result:
+                    return result
+        except Exception:
+            pass
+    return str(Path.home() / "Downloads")
+
+
+# Folders earlier versions picked automatically; moved to Downloads on upgrade.
+_OLD_DEFAULTS = {str(Path.home() / sub / "Fetchly")
+                 for sub in ("Music", "Videos", "Downloads")}
 
 
 DEFAULTS = {
     "format": "mp3",
     "mp3_quality": "320",
     "mp4_quality": "1080",
-    "mp3_dir": _default_dir("Music"),
-    "mp4_dir": _default_dir("Videos"),
+    "mp3_dir": downloads_dir(),
+    "mp4_dir": downloads_dir(),
     "cover_art": True,
     "tags": True,
     "subtitles": False,
@@ -55,6 +81,9 @@ class Settings:
         self._file = JsonFile("settings.json", {})
         loaded = self._file.load()
         self.values = {**DEFAULTS, **(loaded if isinstance(loaded, dict) else {})}
+        for key in ("mp3_dir", "mp4_dir"):
+            if self.values[key] in _OLD_DEFAULTS:
+                self.values[key] = DEFAULTS[key]
 
     def __getitem__(self, key):
         return self.values[key]

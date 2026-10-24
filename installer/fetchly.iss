@@ -3,7 +3,7 @@
 ;   iscc installer\fetchly.iss        -> dist\Fetchly-Setup-<version>.exe
 
 #define AppName "Fetchly"
-#define AppVersion "1.0.1"
+#define AppVersion "1.0.2"
 #define AppExe "Fetchly.exe"
 
 [Setup]
@@ -12,8 +12,9 @@ AppId={{6F3C2A9E-5B1D-4C7E-9A2F-FE7C1B0D4A11}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
-AppPublisher=Fetchly contributors
+AppPublisher=Vishnu VK
 AppPublisherURL=https://github.com/
+AppCopyright=Copyright (c) 2026 Vishnu VK
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes

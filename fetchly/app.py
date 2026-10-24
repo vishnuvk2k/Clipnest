@@ -22,7 +22,7 @@ from . import __version__, engine, theme
 from .downloads import DownloadManager, Job
 from .jobs import (
     MP3_QUALITIES, MP4_QUALITIES, JobOptions, MediaInfo, detect_source, format_duration,
-    info_args, parse_info,
+    info_args, parse_info, unsupported_reason,
 )
 from .store import History, Settings
 
@@ -549,6 +549,9 @@ class DownloadPage(QWidget):
         url = self.link.text().strip()
         if not url or not detect_source(url) or not self.engine_ready or url == self.info_url:
             return
+        if reason := unsupported_reason(url):
+            self.show_link_error(url, reason)
+            return
         if self.info_proc is not None:
             self.info_proc.kill()
         self.info_url = url
@@ -666,6 +669,9 @@ class DownloadPage(QWidget):
             self.link_error.setText("Paste a full link that starts with https://")
             self.link_error.show()
             self.link.setFocus()
+            return
+        if reason := unsupported_reason(url):
+            self.show_link_error(url, reason)
             return
         fmt = self.fmt()
         out_dir = self.settings[f"{fmt}_dir"]
@@ -859,10 +865,12 @@ class SettingsPage(QWidget):
             section("Download engine",
                     engine_row,
                     10,
-                    label("Fetchly uses yt-dlp and FFmpeg (both free and open source) to "
+                    label("Fetchly uses yt-dlp, FFmpeg and Deno (all free and open source) to "
                           "download and convert files.", "Small", wrap=True)),
             20,
             section(f"About Fetchly {__version__}",
+                    label("Made by <b>Vishnu VK</b>, built with <b>Claude Code</b>.", None),
+                    8,
                     label("Free and open source. Please download only content you have "
                           "the right to save, and respect creators' copyright.", "Small", wrap=True)),
             None,
