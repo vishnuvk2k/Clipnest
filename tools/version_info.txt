@@ -1,0 +1,16 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(filevers=(1, 0, 0, 0), prodvers=(1, 0, 0, 0)),
+  kids=[
+    StringFileInfo([StringTable("040904B0", [
+      StringStruct("CompanyName", "Fetchly contributors"),
+      StringStruct("FileDescription", "Fetchly - YouTube and Instagram downloader"),
+      StringStruct("FileVersion", "1.0.0"),
+      StringStruct("InternalName", "Fetchly"),
+      StringStruct("LegalCopyright", "MIT License"),
+      StringStruct("OriginalFilename", "Fetchly.exe"),
+      StringStruct("ProductName", "Fetchly"),
+      StringStruct("ProductVersion", "1.0.0"),
+    ])]),
+    VarFileInfo([VarStruct("Translation", [1033, 1200])]),
+  ],
+)
