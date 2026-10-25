@@ -3,6 +3,8 @@
 <h1 align="center">Clipnest</h1>
 <p align="center"><em>Say it: CLIP-nest</em><br>A free, open-source desktop app to save YouTube and Instagram media as MP3 or MP4.</p>
 
+<p align="center"><a href="https://github.com/vishnuvk2k/clipnest/releases/latest">Download for Windows</a> · <a href="LICENSE">MIT License</a> · <a href="https://github.com/vishnuvk2k/clipnest/issues">Report a problem</a></p>
+
 ## Features
 
 - **MP3 audio** at 320, 256, 192 or 128 kbps, with cover art and title/artist tags
@@ -16,7 +18,7 @@
 
 ## Download
 
-From the [Releases](../../releases) page, get either:
+From the [Releases](https://github.com/vishnuvk2k/clipnest/releases/latest) page, get either:
 
 - **`Clipnest-Setup-<version>.exe`** (recommended): a setup wizard that lets you choose the
   install folder, accept the license, and add Start Menu and desktop shortcuts. Uninstall from
@@ -40,6 +42,8 @@ On first launch Clipnest downloads its engine (yt-dlp, FFmpeg and Deno, about 15
 ## Run from source
 
 ```bash
+git clone https://github.com/vishnuvk2k/clipnest.git
+cd clipnest
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
