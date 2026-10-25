@@ -271,6 +271,15 @@ def friendly_error(log: str) -> str:
     errors = [l for l in log.splitlines() if l.startswith("ERROR:")]
     msg = errors[-1][6:].strip() if errors else (log.strip().splitlines() or ["Unknown error"])[-1]
     low = msg.lower()
+    if "cookies database" in low and "could not find" in low:
+        return ("Couldn't find a login in the browser chosen in Settings → Logins. Pick "
+                "the browser you're logged in with, or choose “Don't use a browser login”.")
+    if "could not copy" in low and "cookie" in low:
+        return ("Couldn't read the browser's login because the browser is open. Close it "
+                "completely and try again, or use Firefox for logins in Settings.")
+    if "dpapi" in low or "app-bound" in low or ("decrypt" in low and "cookie" in low):
+        return ("Windows blocks reading this browser's login. In Settings → Logins, choose "
+                "Firefox, or “Don't use a browser login”.")
     if "private" in low or "login required" in low or "log in" in low or "rate-limit" in low:
         return ("This needs you to be logged in. In Settings, choose the browser "
                 "you're logged in with, then try again.")

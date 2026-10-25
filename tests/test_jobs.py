@@ -132,3 +132,26 @@ def test_old_default_folders_move_to_downloads(tmp_path, monkeypatch):
     s = store.Settings()
     assert s["mp3_dir"] == store.downloads_dir()
     assert s["mp4_dir"] == "D:/Mine"
+
+
+def test_browser_login_errors():
+    opera = ('ERROR: could not find opera cookies database in '
+             '"C:\\Users\\x\\AppData\\Roaming\\Opera Software\\Opera Stable"')
+    assert "Settings → Logins" in friendly_error(opera)
+    assert "Close it" in friendly_error("ERROR: Could not copy Chrome cookie database. See ...")
+    assert "Firefox" in friendly_error("ERROR: Failed to decrypt with DPAPI. See ...")
+
+
+def test_browser_detection(tmp_path, monkeypatch):
+    from clipnest import browsers, engine
+    monkeypatch.setattr(engine, "IS_WINDOWS", True)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    (tmp_path / "Roaming/Opera Software/Opera GX Stable").mkdir(parents=True)
+    (tmp_path / "Local/Microsoft/Edge/User Data").mkdir(parents=True)
+    assert [b.key for b in browsers.installed()] == ["edge", "opera_gx"]
+    assert browsers.cookies_arg("edge") == "edge"
+    gx = browsers.cookies_arg("opera_gx")
+    assert gx.startswith("opera:") and "Opera GX Stable" in gx
+    assert browsers.cookies_arg("opera") == ""      # plain Opera isn't installed
+    assert browsers.cookies_arg("") == ""

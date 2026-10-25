@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from . import __version__, engine, theme
+from . import __version__, browsers, engine, theme
 from .downloads import DownloadManager, Job
 from .jobs import (
     MP3_QUALITIES, MP4_QUALITIES, JobOptions, MediaInfo, detect_source, format_duration,
@@ -32,9 +32,6 @@ QUALITY_LABELS = {
     "mp4": {"2160": ("4K · 2160p", "Best"), "1440": ("1440p", ""),
             "1080": ("1080p", "Full HD"), "720": ("720p", "")},
 }
-BROWSERS = [("", "Don't use a browser login"), ("chrome", "Google Chrome"),
-            ("edge", "Microsoft Edge"), ("firefox", "Firefox"), ("brave", "Brave"),
-            ("opera", "Opera")]
 
 
 # -- small helpers ------------------------------------------------------------
@@ -562,7 +559,8 @@ class DownloadPage(QWidget):
         env.insert("PYTHONIOENCODING", "utf-8")
         proc.setProcessEnvironment(env)
         deno = engine.deno_path()
-        args = info_args(str(engine.ytdlp_path()), url, self.settings["cookies_browser"],
+        args = info_args(str(engine.ytdlp_path()), url,
+                         browsers.cookies_arg(self.settings["cookies_browser"]),
                          str(deno) if deno else "")
         proc.finished.connect(lambda code, _s, p=proc, u=url: self.on_info(p, u, code))
         proc.errorOccurred.connect(lambda err, p=proc, u=url: self.on_info_error(p, u, err))
@@ -685,7 +683,7 @@ class DownloadPage(QWidget):
             url=url, fmt=fmt, quality=self.settings[f"{fmt}_quality"], out_dir=out_dir,
             cover_art=self.opt_cover.isChecked(), tags=self.opt_tags.isChecked(),
             subtitles=self.opt_subs.isChecked(), playlist=self.opt_playlist.isChecked(),
-            cookies_browser=self.settings["cookies_browser"],
+            cookies_browser=browsers.cookies_arg(self.settings["cookies_browser"]),
         )
         title = self.info.title if self.info and self.info_url == url else url
         self.manager.add(opts, title)
@@ -824,11 +822,15 @@ class SettingsPage(QWidget):
             row.setStretch(0, 1)
             return vbox(row, 12)
 
+        # Only browsers that are actually on this PC. A saved choice whose
+        # browser has gone (or never existed) falls back to no login.
+        if settings["cookies_browser"] and not browsers.is_installed(settings["cookies_browser"]):
+            settings.set("cookies_browser", "")
         self.browser = QComboBox()
-        for key, text in BROWSERS:
-            self.browser.addItem(text, key)
-        self.browser.setCurrentIndex(max(0, [b[0] for b in BROWSERS].index(settings["cookies_browser"])
-                                         if settings["cookies_browser"] in [b[0] for b in BROWSERS] else 0))
+        self.browser.addItem("Don't use a browser login", "")
+        for b in browsers.installed():
+            self.browser.addItem(b.name, b.key)
+        self.browser.setCurrentIndex(max(0, self.browser.findData(settings["cookies_browser"])))
         self.browser.currentIndexChanged.connect(
             lambda: self.settings.set("cookies_browser", self.browser.currentData()))
         self.browser.setAccessibleName("Browser to use for logins")
@@ -854,10 +856,13 @@ class SettingsPage(QWidget):
             section("Save locations", folder_row("mp3", "MP3 audio"), folder_row("mp4", "MP4 video")),
             20,
             section("Logins",
-                    label("Private Instagram posts, and YouTube when it asks you to confirm "
-                          "you're not a bot, need you to be logged in. Choose the browser "
-                          "where you're logged in and Clipnest will use that login. "
-                          "Close that browser first if downloads fail.", "Small", wrap=True),
+                    label("Most downloads don't need this. Private Instagram posts, and "
+                          "YouTube when it asks you to confirm you're not a bot, need you to "
+                          "be logged in: choose the browser where you're logged in and "
+                          "Clipnest will use that login. Only browsers installed on this PC "
+                          "are listed. Firefox works most reliably; Chrome and Edge often "
+                          "lock their logins on Windows. Close the browser first if "
+                          "downloads fail.", "Small", wrap=True),
                     14, hbox(self.browser, None)),
             20,
             section("General", auto_paste, 10, auto_update),

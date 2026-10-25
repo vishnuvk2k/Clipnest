@@ -3,7 +3,7 @@
 ;   iscc installer\clipnest.iss        -> dist\Clipnest-Setup-<version>.exe
 
 #define AppName "Clipnest"
-#define AppVersion "1.1.0"
+#define AppVersion "1.1.1"
 #define AppExe "Clipnest.exe"
 
 [Setup]
