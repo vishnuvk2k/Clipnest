@@ -277,6 +277,10 @@ def friendly_error(log: str) -> str:
     if "could not copy" in low and "cookie" in low:
         return ("Couldn't read the browser's login because the browser is open. Close it "
                 "completely and try again, or use Firefox for logins in Settings.")
+    if "safari" in low and ("operation not permitted" in low or "permission" in low):
+        return ("macOS blocks reading Safari's login. Give Clipnest Full Disk Access in "
+                "System Settings → Privacy & Security, or choose another browser in "
+                "Settings → Logins.")
     if "dpapi" in low or "app-bound" in low or ("decrypt" in low and "cookie" in low):
         return ("Windows blocks reading this browser's login. In Settings → Logins, choose "
                 "Firefox, or “Don't use a browser login”.")

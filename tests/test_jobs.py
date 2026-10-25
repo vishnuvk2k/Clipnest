@@ -155,3 +155,25 @@ def test_browser_detection(tmp_path, monkeypatch):
     assert gx.startswith("opera:") and "Opera GX Stable" in gx
     assert browsers.cookies_arg("opera") == ""      # plain Opera isn't installed
     assert browsers.cookies_arg("") == ""
+
+
+def test_mac_browser_detection(tmp_path, monkeypatch):
+    from clipnest import browsers, engine
+    monkeypatch.setattr(engine, "IS_WINDOWS", False)
+    monkeypatch.setattr(engine, "IS_MAC", True)
+    monkeypatch.setattr(browsers.Path, "home", lambda: tmp_path)
+    (tmp_path / "Library/Application Support/Firefox/Profiles").mkdir(parents=True)
+    assert [b.key for b in browsers.installed()] == ["safari", "firefox"]
+    assert browsers.cookies_arg("firefox") == "firefox"
+    assert browsers.cookies_arg("chrome") == ""
+
+
+def test_latest_mac_ffmpeg():
+    from clipnest.engine import latest_mac_ffmpeg
+    html = ('<a href="/download/macos/arm64/1700_8.1/ffmpeg.zip"></a>'
+            '<a href="/download/macos/arm64/1800_9.0.2/ffmpeg.zip"></a>'
+            '<a href="/download/macos/arm64/1900_N-1234-gabc/ffmpeg.zip"></a>'
+            '<a href="/download/macos/amd64/1850_9.0.2/ffmpeg.zip"></a>')
+    assert latest_mac_ffmpeg(html, "arm64").endswith("/macos/arm64/1800_9.0.2")
+    assert latest_mac_ffmpeg(html, "amd64").endswith("/macos/amd64/1850_9.0.2")
+    assert latest_mac_ffmpeg("", "arm64") is None

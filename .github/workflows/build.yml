@@ -11,8 +11,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
@@ -21,11 +21,9 @@ jobs:
   windows:
     needs: test
     runs-on: windows-latest
-    permissions:
-      contents: write   # attach the installer to a GitHub release
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
@@ -38,16 +36,71 @@ jobs:
           $env:CLIPNEST_ONEFILE = "1"
           pyinstaller --noconfirm clipnest.spec
           Move-Item dist\Clipnest.exe dist\Clipnest-Portable.exe
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Clipnest-windows
           path: |
             dist/Clipnest-Setup-*.exe
             dist/Clipnest-Portable.exe
-      - name: Attach to GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+
+  macos:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest      # Apple Silicon (M1 and later)
+            arch: apple-silicon
+          - runner: macos-15-intel    # Intel Macs
+            arch: intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
-          files: |
-            dist/Clipnest-Setup-*.exe
-            dist/Clipnest-Portable.exe
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: Build Clipnest.app
+        run: pyinstaller --noconfirm clipnest.spec
+      - name: Check the app starts
+        run: |
+          QT_QPA_PLATFORM=offscreen dist/Clipnest.app/Contents/MacOS/Clipnest &
+          PID=$!
+          sleep 20
+          kill -0 $PID   # fails the build if the app already crashed
+          kill $PID
+      - name: Make disk image
+        run: |
+          VERSION=$(python -c "from clipnest import __version__; print(__version__)")
+          mkdir dmg
+          cp -R dist/Clipnest.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Clipnest" -srcfolder dmg -ov -format UDZO \
+            "dist/Clipnest-${VERSION}-macOS-${{ matrix.arch }}.dmg"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Clipnest-macos-${{ matrix.arch }}
+          path: dist/Clipnest-*-macOS-*.dmg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub release
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Clipnest ${{ github.ref_name }}
+          files: artifacts/*
+          body: |
+            **Windows:** download `Clipnest-Setup-*.exe` (installer) or `Clipnest-Portable.exe`.
+            **Mac:** download the `.dmg` for your Mac (Apple menu → About This Mac shows the chip):
+            `apple-silicon` for M1/M2/M3/M4 Macs, `intel` for Intel Macs.
+
+            The apps aren't code-signed yet, so Windows SmartScreen and macOS Gatekeeper
+            will warn the first time; see the README for how to open them.

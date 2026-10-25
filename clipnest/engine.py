@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import io
 import os
+import platform
+import re
 import shutil
 import stat
 import subprocess
@@ -26,15 +28,16 @@ YTDLP_URLS = {
     "darwin": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos",
     "linux": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux",
 }
-# yt-dlp needs a JavaScript runtime to read YouTube pages fully.
-DENO_WIN_URL = (
-    "https://github.com/denoland/deno/releases/latest/download/"
-    "deno-x86_64-pc-windows-msvc.zip"
-)
 FFMPEG_WIN_URL = (
     "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/"
     "ffmpeg-master-latest-win64-gpl.zip"
 )
+# Static macOS builds for Apple Silicon (arm64) and Intel (amd64). The page
+# lists every build; we take the newest numbered release.
+FFMPEG_MAC_INDEX = "https://ffmpeg.martin-riedl.de/"
+FFMPEG_MAC_BASE = "https://ffmpeg.martin-riedl.de"
+# yt-dlp needs a JavaScript runtime to read YouTube pages fully.
+DENO_URL = "https://github.com/denoland/deno/releases/latest/download/deno-{target}.zip"
 
 # Keeps a console window from flashing up for every child process on Windows.
 NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
@@ -108,9 +111,13 @@ def missing_parts() -> list[str]:
         parts.append("yt-dlp")
     if ffmpeg_path() is None:
         parts.append("ffmpeg")
-    if IS_WINDOWS and deno_path() is None:
+    if deno_path() is None:
         parts.append("deno")
     return parts
+
+
+def _is_arm() -> bool:
+    return platform.machine().lower() in ("arm64", "aarch64")
 
 
 def _download(url: str, label: str, progress: ProgressFn) -> bytes:
@@ -136,25 +143,58 @@ def install_ytdlp(progress: ProgressFn) -> None:
         target.chmod(target.stat().st_mode | stat.S_IEXEC)
 
 
-def install_ffmpeg(progress: ProgressFn) -> None:
-    if not IS_WINDOWS:
-        raise RuntimeError(
-            "FFmpeg was not found. Install it with your package manager "
-            "(for example `brew install ffmpeg` or `sudo apt install ffmpeg`)."
-        )
-    data = _download(FFMPEG_WIN_URL, "Downloading FFmpeg", progress)
-    progress("Unpacking FFmpeg", 1.0)
+def _unzip(data: bytes, names: tuple[str, ...]) -> None:
+    """Writes the named files (found anywhere in the zip) to the engine folder."""
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         for member in zf.namelist():
             name = member.rsplit("/", 1)[-1]
-            if name in ("ffmpeg.exe", "ffprobe.exe"):
-                (engine_dir() / name).write_bytes(zf.read(member))
+            if name in names:
+                target = engine_dir() / name
+                target.write_bytes(zf.read(member))
+                if not IS_WINDOWS:
+                    target.chmod(target.stat().st_mode | stat.S_IEXEC)
+
+
+def latest_mac_ffmpeg(index_html: str, arch: str) -> str | None:
+    """Folder URL of the newest numbered release build for "arm64"/"amd64"."""
+    builds = re.findall(rf"/download/macos/{arch}/(\d+)_(\d+(?:\.\d+)+)/ffmpeg\.zip", index_html)
+    if not builds:
+        return None
+    stamp, version = max(builds, key=lambda b: int(b[0]))
+    return f"{FFMPEG_MAC_BASE}/download/macos/{arch}/{stamp}_{version}"
+
+
+def install_ffmpeg(progress: ProgressFn) -> None:
+    if IS_WINDOWS:
+        data = _download(FFMPEG_WIN_URL, "Downloading FFmpeg", progress)
+        progress("Unpacking FFmpeg", 1.0)
+        _unzip(data, ("ffmpeg.exe", "ffprobe.exe"))
+        return
+    if IS_MAC:
+        index = _download(FFMPEG_MAC_INDEX, "Finding FFmpeg", lambda *_: None).decode("utf-8", "replace")
+        folder = latest_mac_ffmpeg(index, "arm64" if _is_arm() else "amd64")
+        if folder is None:
+            raise RuntimeError("Couldn't find an FFmpeg download for this Mac.")
+        for tool in ("ffmpeg", "ffprobe"):
+            data = _download(f"{folder}/{tool}.zip", f"Downloading {tool}", progress)
+            _unzip(data, (tool,))
+        return
+    raise RuntimeError(
+        "FFmpeg was not found. Install it with your package manager "
+        "(for example `sudo apt install ffmpeg`)."
+    )
+
+
+def _deno_target() -> str:
+    if IS_WINDOWS:
+        return "x86_64-pc-windows-msvc"
+    arch = "aarch64" if _is_arm() else "x86_64"
+    return f"{arch}-apple-darwin" if IS_MAC else f"{arch}-unknown-linux-gnu"
 
 
 def install_deno(progress: ProgressFn) -> None:
-    data = _download(DENO_WIN_URL, "Downloading the YouTube helper", progress)
-    with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        (engine_dir() / "deno.exe").write_bytes(zf.read("deno.exe"))
+    data = _download(DENO_URL.format(target=_deno_target()), "Downloading the YouTube helper", progress)
+    _unzip(data, (_exe("deno"),))
 
 
 def install_missing(progress: ProgressFn) -> None:
@@ -162,7 +202,7 @@ def install_missing(progress: ProgressFn) -> None:
         install_ytdlp(progress)
     if ffmpeg_path() is None:
         install_ffmpeg(progress)
-    if IS_WINDOWS and deno_path() is None:
+    if deno_path() is None:
         install_deno(progress)
 
 

@@ -1,4 +1,4 @@
-"""Renders the Clipnest logo to assets/clipnest.ico (Windows) and assets/clipnest.png.
+"""Renders the Clipnest logo to assets/: .ico (Windows), .icns (macOS) and .png.
 
 Run from the repo root: python tools/make_icon.py
 """
@@ -35,5 +35,7 @@ sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 images = [render(s) for s in sizes]
 images[-1].save(assets / "clipnest.ico", sizes=[(s, s) for s in sizes], append_images=images[:-1])
 render(512).save(assets / "clipnest.png")
+# macOS app icon; Pillow builds every size it needs from the 1024 px image.
+render(1024).save(assets / "clipnest.icns")
 (assets / "clipnest.svg").write_text(theme.LOGO_SVG)
 print("wrote", ", ".join(p.name for p in sorted(assets.iterdir())))

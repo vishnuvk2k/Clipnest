@@ -98,6 +98,8 @@ def show_in_folder(path: str) -> None:
     p = Path(path)
     if engine.IS_WINDOWS and p.exists():
         subprocess.Popen(["explorer", "/select,", str(p)])
+    elif engine.IS_MAC and p.exists():
+        subprocess.Popen(["open", "-R", str(p)])    # reveal in Finder
     else:
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.parent if p.is_file() else p)))
 

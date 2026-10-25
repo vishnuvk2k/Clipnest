@@ -18,7 +18,7 @@ class Browser:
     key: str          # what Settings stores
     name: str         # what the person sees
     ytdlp: str        # yt-dlp browser name
-    folder: str       # profile folder; "{local}" / "{roaming}" are expanded
+    folder: str       # profile folder; "{local}", "{roaming}", "{mac}" are expanded
     use_path: bool = False   # pass the folder to yt-dlp (it can't find it alone)
 
 
@@ -31,6 +31,18 @@ _WINDOWS = [
     Browser("opera_gx", "Opera GX", "opera", "{roaming}/Opera Software/Opera GX Stable", True),
     Browser("vivaldi", "Vivaldi", "vivaldi", "{local}/Vivaldi/User Data"),
     Browser("chromium", "Chromium", "chromium", "{local}/Chromium/User Data"),
+]
+
+_MAC = [
+    Browser("safari", "Safari", "safari", ""),        # always there
+    Browser("firefox", "Firefox", "firefox", "{mac}/Firefox/Profiles"),
+    Browser("chrome", "Google Chrome", "chrome", "{mac}/Google/Chrome"),
+    Browser("edge", "Microsoft Edge", "edge", "{mac}/Microsoft Edge"),
+    Browser("brave", "Brave", "brave", "{mac}/BraveSoftware/Brave-Browser"),
+    Browser("opera", "Opera", "opera", "{mac}/com.operasoftware.Opera"),
+    Browser("opera_gx", "Opera GX", "opera", "{mac}/com.operasoftware.OperaGX", True),
+    Browser("vivaldi", "Vivaldi", "vivaldi", "{mac}/Vivaldi"),
+    Browser("chromium", "Chromium", "chromium", "{mac}/Chromium"),
 ]
 
 # Elsewhere we can't cheaply check what's installed, so offer the common ones.
@@ -49,17 +61,20 @@ _OTHER = [
 def _expand(folder: str) -> Path:
     local = os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
     roaming = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
-    return Path(folder.format(local=local, roaming=roaming))
+    mac = str(Path.home() / "Library" / "Application Support")
+    return Path(folder.format(local=local, roaming=roaming, mac=mac))
 
 
 def all_browsers() -> list[Browser]:
-    return _WINDOWS if engine.IS_WINDOWS else _OTHER
+    if engine.IS_WINDOWS:
+        return _WINDOWS
+    return _MAC if engine.IS_MAC else _OTHER
 
 
 def installed() -> list[Browser]:
-    if not engine.IS_WINDOWS:
+    if not (engine.IS_WINDOWS or engine.IS_MAC):
         return list(_OTHER)
-    return [b for b in _WINDOWS if _expand(b.folder).is_dir()]
+    return [b for b in all_browsers() if not b.folder or _expand(b.folder).is_dir()]
 
 
 def find(key: str) -> Browser | None:

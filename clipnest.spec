@@ -2,11 +2,17 @@
 #
 #   pyinstaller clipnest.spec                     -> dist/Clipnest/ (folder, used by the installer)
 #   set CLIPNEST_ONEFILE=1 & pyinstaller clipnest.spec -> dist/Clipnest.exe (one portable file)
+#   on macOS: pyinstaller clipnest.spec           -> dist/Clipnest.app
 #
 # No console window. yt-dlp, FFmpeg and Deno are downloaded on first launch.
 
 import os
 import sys
+
+sys.path.insert(0, os.path.abspath("."))
+from clipnest import __version__
+
+IS_MAC = sys.platform == "darwin"
 
 ONEFILE = os.environ.get("CLIPNEST_ONEFILE") == "1"
 
@@ -32,7 +38,7 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe_options = dict(
     name="Clipnest",
-    icon="assets/clipnest.ico",
+    icon="assets/clipnest.icns" if IS_MAC else "assets/clipnest.ico",
     console=False,
     upx=False,
     version="tools/version_info.txt" if sys.platform == "win32" else None,
@@ -43,3 +49,20 @@ if ONEFILE:
 else:
     exe = EXE(pyz, a.scripts, exclude_binaries=True, **exe_options)
     coll = COLLECT(exe, a.binaries, a.datas, name="Clipnest", upx=False)
+    if IS_MAC:
+        app = BUNDLE(
+            coll,
+            name="Clipnest.app",
+            icon="assets/clipnest.icns",
+            bundle_identifier="com.vishnuvk.clipnest",
+            version=__version__,
+            info_plist={
+                "CFBundleDisplayName": "Clipnest",
+                "CFBundleShortVersionString": __version__,
+                "CFBundleVersion": __version__,
+                "NSHighResolutionCapable": True,
+                "NSRequiresAquaSystemAppearance": False,   # follow dark mode
+                "LSMinimumSystemVersion": "12.0",
+                "NSHumanReadableCopyright": "Copyright (c) 2026 Vishnu VK. MIT License.",
+            },
+        )
