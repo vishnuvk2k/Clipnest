@@ -25,6 +25,7 @@ from .jobs import (
     info_args, parse_info, unsupported_reason,
 )
 from .store import History, Settings
+from .web import WebServer
 
 QUALITY_LABELS = {
     "mp3": {"320": ("320 kbps", "Best"), "256": ("256 kbps", ""),
@@ -754,6 +755,21 @@ def _height_name(h: int) -> str:
     return f"{h}p"
 
 
+def qr_pixmap(text: str, size: int, dpr: float) -> QPixmap:
+    """A crisp QR code for the Clipnest Web link."""
+    import io
+
+    import segno
+    buf = io.BytesIO()
+    segno.make(text, error="m").save(buf, kind="png", scale=10, border=2,
+                                     dark="#16151C", light="#FFFFFF")
+    px = QPixmap()
+    px.loadFromData(buf.getvalue())
+    px = px.scaled(int(size * dpr), int(size * dpr), Qt.KeepAspectRatio, Qt.FastTransformation)
+    px.setDevicePixelRatio(dpr)
+    return px
+
+
 def _rounded(px: QPixmap, radius: float) -> QPixmap:
     from PySide6.QtGui import QPainter, QPainterPath
     out = QPixmap(px.size())
@@ -841,9 +857,9 @@ class HistoryPage(QWidget):
 class SettingsPage(QWidget):
     update_requested = Signal()
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, web: WebServer):
         super().__init__()
-        self.settings = settings
+        self.settings, self.web = settings, web
         self.dir_labels: dict[str, QLabel] = {}
 
         def section(title: str, *rows) -> QFrame:
@@ -882,6 +898,37 @@ class SettingsPage(QWidget):
         auto_update.setChecked(settings["auto_update"])
         auto_update.toggled.connect(lambda on: self.settings.set("auto_update", on))
 
+        # Clipnest Web
+        self.web_toggle = QCheckBox("Turn on Clipnest Web")
+        self.web_toggle.setChecked(settings["web_enabled"])
+        self.web_toggle.toggled.connect(self.set_web_enabled)
+        self.web_qr = QLabel()
+        self.web_qr.setFixedSize(176, 176)
+        self.web_qr.setAlignment(Qt.AlignCenter)
+        self.web_qr.setStyleSheet("background: #FFFFFF; border-radius: 12px;")
+        self.web_qr.setAccessibleName("QR code with the Clipnest Web link")
+        self.web_url = label("", None, wrap=True)
+        self.web_url.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.web_url.setStyleSheet("font-size: 13px;")
+        self.web_more = label("", "Small", wrap=True)
+        self.web_more.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        copy_link = QPushButton("Copy link")
+        copy_link.setObjectName("SmallButton")
+        copy_link.clicked.connect(self.copy_web_link)
+        new_link = QPushButton("New link")
+        new_link.setObjectName("SmallButton")
+        new_link.setToolTip("Make a new private link. Phones using the old one stop working.")
+        new_link.clicked.connect(self.web.new_link)
+        web_text = vbox(label("Scan this with your phone's camera, or open this link in its "
+                              "browser:", "Small", wrap=True), 8, self.web_url, 6, self.web_more,
+                        12, hbox(copy_link, 8, new_link, None), None)
+        self.web_box = QWidget()
+        web_row = hbox(self.web_qr, 20, web_text)
+        web_row.setStretch(2, 1)
+        self.web_box.setLayout(web_row)
+        self.web_error = label("", "Error", wrap=True)
+        self.web.state_changed.connect(self.refresh_web)
+
         self.engine_text = label("Checking…", "Small", wrap=True)
         self.update_btn = QPushButton("  Check for updates")
         self.update_btn.setIcon(theme.icon("refresh", theme.TEXT))
@@ -905,6 +952,21 @@ class SettingsPage(QWidget):
                           "lock their logins on Windows. Close the browser first if "
                           "downloads fail.", "Small", wrap=True),
                     14, hbox(self.browser, None)),
+            20,
+            section("Use on your phone",
+                    label("Clipnest Web lets your phone, tablet or another computer use Clipnest "
+                          "through its browser: paste a link there, and the download runs here "
+                          "on this computer, then you can save the file to your phone. Your phone "
+                          "must be on the same Wi-Fi, and Clipnest must stay open here. Only "
+                          "devices with the private link below can use it.", "Small", wrap=True),
+                    14, self.web_toggle, 16, self.web_box, self.web_error, 12,
+                    label(("macOS may ask whether Clipnest can accept incoming connections: "
+                           "click <b>Allow</b>." if engine.IS_MAC else
+                           "Windows may ask whether to allow Clipnest on networks: choose "
+                           "<b>Private networks</b>.") +
+                          " To use it away from home, install the free Tailscale app on this "
+                          "computer and your phone; its address appears above.",
+                          "Small", wrap=True)),
             20,
             section("General", auto_paste, 10, auto_update),
             20,
@@ -931,6 +993,35 @@ class SettingsPage(QWidget):
             self.settings.set(f"{fmt}_dir", d)
             self.dir_labels[fmt].setText(d)
 
+    def set_web_enabled(self, on: bool) -> None:
+        self.settings.set("web_enabled", on)
+        if on:
+            self.web.start()
+        else:
+            self.web.stop()
+        self.refresh_web()
+
+    def refresh_web(self) -> None:
+        urls = self.web.urls()
+        self.web_box.setVisible(bool(urls))
+        error = self.web.error
+        if self.web.running and not urls:
+            error = "This computer isn't connected to a network. Connect it to Wi-Fi first."
+        self.web_error.setText(error)
+        self.web_error.setVisible(bool(error) and self.web_toggle.isChecked())
+        if urls:
+            self.web_url.setText(urls[0])
+            others = urls[1:]
+            self.web_more.setText(("Also works at: " + ", ".join(
+                u.split("?")[0] for u in others)) if others else "")
+            self.web_more.setVisible(bool(others))
+            self.web_qr.setPixmap(qr_pixmap(urls[0], 160, self.devicePixelRatioF()))
+
+    def copy_web_link(self) -> None:
+        urls = self.web.urls()
+        if urls:
+            QGuiApplication.clipboard().setText(urls[0])
+
     def set_engine_status(self, text: str, busy: bool) -> None:
         self.engine_text.setText(text)
         self.update_btn.setEnabled(not busy)
@@ -949,6 +1040,8 @@ class MainWindow(QMainWindow):
         self.settings = Settings()
         self.history = History()
         self.manager = DownloadManager(self)
+        self.web = WebServer(self.manager, self.settings,
+                             lambda: self.download_page.engine_ready, self)
 
         # Sidebar
         side = QFrame()
@@ -978,7 +1071,7 @@ class MainWindow(QMainWindow):
         # Pages
         self.download_page = DownloadPage(self.settings, self.manager)
         self.history_page = HistoryPage(self.history)
-        self.settings_page = SettingsPage(self.settings)
+        self.settings_page = SettingsPage(self.settings, self.web)
         self.stack = QStackedWidget()
         self.stack.setObjectName("Content")
         for p in (self.download_page, self.history_page, self.settings_page):
@@ -994,6 +1087,9 @@ class MainWindow(QMainWindow):
         self.manager.active_count_changed.connect(self.nav_download.set_badge)
         self.manager.job_finished.connect(self.on_job_finished)
         self.settings_page.update_requested.connect(lambda: self.run_engine(update=True))
+        if self.settings["web_enabled"]:
+            self.web.start()
+        self.settings_page.refresh_web()
 
         self.engine_worker: EngineWorker | None = None
         QTimer.singleShot(0, lambda: self.run_engine(update=self.settings["auto_update"]))
@@ -1058,6 +1154,7 @@ class MainWindow(QMainWindow):
                 e.ignore()
                 return
         self.manager.shutdown()
+        self.web.stop()
         super().closeEvent(e)
 
     def showEvent(self, e):

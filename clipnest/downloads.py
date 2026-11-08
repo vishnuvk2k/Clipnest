@@ -76,6 +76,7 @@ class Job:
     opts: JobOptions
     title: str
     id: int = field(default_factory=lambda: next(_ids))
+    origin: str = "app"            # "web" when started from Clipnest Web
     state: str = "queued"          # queued | running | done | error | cancelled
     fraction: float = 0.0
     status: str = "Waiting…"
@@ -99,8 +100,8 @@ class DownloadManager(QObject):
         self.jobs: list[Job] = []
         clean_old_work_dirs()
 
-    def add(self, opts: JobOptions, title: str) -> Job:
-        job = Job(opts=opts, title=title)
+    def add(self, opts: JobOptions, title: str, origin: str = "app") -> Job:
+        job = Job(opts=opts, title=title, origin=origin)
         self.jobs.append(job)
         self.job_added.emit(job)
         self._pump()

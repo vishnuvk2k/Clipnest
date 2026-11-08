@@ -57,6 +57,8 @@ DEFAULTS = {
     "cookies_browser": "",
     "auto_paste": True,
     "auto_update": True,
+    "web_enabled": False,          # Clipnest Web: use Clipnest from a phone's browser
+    "web_key": "",                 # secret part of the Clipnest Web link
 }
 
 
