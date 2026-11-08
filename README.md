@@ -126,7 +126,7 @@ same download engine and page as the app, and is online 24/7.
 
 **Limits:** YouTube and Instagram usually block cloud servers, so the website tells visitors
 to use the free app for those; Facebook, X, Pinterest, Vimeo (public videos) and many others
-work. To keep a small server healthy it runs 2 downloads at a time, allows 3 per visitor at
+work. To keep a small server healthy it runs 1 download at a time, allows 3 per visitor at
 once and 20 per hour, MP4 up to 1080p, files up to 500 MB, no whole playlists, and deletes
 files after 30 minutes. All of these can be changed with `CLIPNEST_*` settings (see
 `server/main.py`).

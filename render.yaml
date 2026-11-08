@@ -9,7 +9,12 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
+      # Render's free plan has 512 MB of memory: one download and one lookup at a time.
       - key: CLIPNEST_MAX_ACTIVE
-        value: "2"
+        value: "1"
+      - key: CLIPNEST_MAX_LOOKUPS
+        value: "1"
+      - key: CLIPNEST_FFMPEG_THREADS
+        value: "1"
       - key: CLIPNEST_KEEP_MINUTES
         value: "30"

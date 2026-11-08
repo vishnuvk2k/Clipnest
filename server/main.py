@@ -44,7 +44,11 @@ YTDLP = ENV("CLIPNEST_YTDLP", "yt-dlp")
 EXTRA_ARGS = ENV("CLIPNEST_YTDLP_EXTRA", "").split()      # e.g. a proxy CA option in tests
 WORK = Path(ENV("CLIPNEST_WORK", "/tmp/clipnest-online"))
 APP_URL = ENV("CLIPNEST_APP_URL", "https://vishnuvk2k.github.io/Clipnest/#download")
-MAX_ACTIVE = int(ENV("CLIPNEST_MAX_ACTIVE", "2"))         # downloads running at once
+MAX_ACTIVE = int(ENV("CLIPNEST_MAX_ACTIVE", "1"))         # downloads running at once
+MAX_LOOKUPS = int(ENV("CLIPNEST_MAX_LOOKUPS", "1"))       # link lookups running at once
+# FFmpeg uses every CPU core by default; on a small server one thread keeps
+# memory use down (free plans have about 512 MB).
+FFMPEG_THREADS = ENV("CLIPNEST_FFMPEG_THREADS", "1")
 MAX_WAITING = int(ENV("CLIPNEST_MAX_WAITING", "20"))      # downloads waiting in line
 PER_VISITOR = int(ENV("CLIPNEST_PER_VISITOR", "3"))       # unfinished per visitor
 PER_HOUR = int(ENV("CLIPNEST_PER_HOUR", "20"))            # new downloads per address per hour
@@ -139,7 +143,7 @@ class Service:
         self.jobs: dict[str, Job] = {}
         self.waiting: queue.Queue[Job] = queue.Queue()
         self.recent: dict[str, list[float]] = {}        # address -> start times
-        self.lookups = threading.Semaphore(4)
+        self.lookups = threading.Semaphore(MAX_LOOKUPS)
         WORK.mkdir(parents=True, exist_ok=True)
         for old in WORK.iterdir():                       # left from a previous run
             shutil.rmtree(old, ignore_errors=True)
@@ -154,7 +158,7 @@ class Service:
             return {"error": "Paste a full link that starts with https://"}
         if reason := unsupported_reason(url):
             return {"error": reason}
-        if not self.lookups.acquire(timeout=30):
+        if not self.lookups.acquire(timeout=60):
             return {"error": "This website is busy right now. Try again in a minute."}
         args = info_args(YTDLP, url)
         args[1:1] = EXTRA_ARGS
@@ -253,7 +257,8 @@ class Service:
         opts = JobOptions(url=job.url, fmt=job.fmt, quality=job.quality, out_dir=str(job.folder),
                           cover_art=True, tags=True, subtitles=False, playlist=False)
         args = build_args(YTDLP, opts)
-        args[1:1] = [*EXTRA_ARGS, "--max-filesize", MAX_FILESIZE]
+        args[1:1] = [*EXTRA_ARGS, "--max-filesize", MAX_FILESIZE,
+                     "--postprocessor-args", f"ffmpeg:-threads {FFMPEG_THREADS}"]
         log: list[str] = []
         with self.lock:
             if job.state != "queued":
