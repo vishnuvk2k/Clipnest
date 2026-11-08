@@ -32,6 +32,16 @@ QUALITY_LABELS = {
     "mp4": {"2160": ("4K · 2160p", "Best"), "1440": ("1440p", ""),
             "1080": ("1080p", "Full HD"), "720": ("720p", "")},
 }
+FORMAT_ICONS = {"mp3": "music", "mp4": "video", "image": "image"}
+
+
+def format_label(fmt: str, quality: str) -> str:
+    """'MP3 · 320 kbps', 'MP4 · 1080p' or 'Image · original'."""
+    if fmt == "mp3":
+        return f"MP3 · {quality} kbps"
+    if fmt == "image":
+        return "Image · original"
+    return "MP4 · " + QUALITY_LABELS["mp4"].get(quality, (quality,))[0]
 
 
 # -- small helpers ------------------------------------------------------------
@@ -228,8 +238,7 @@ class DownloadRow(QFrame):
 
     def refresh(self) -> None:
         j = self.job
-        kind = "MP3 · " + j.opts.quality + " kbps" if j.opts.fmt == "mp3" else \
-            "MP4 · " + QUALITY_LABELS["mp4"][j.opts.quality][0]
+        kind = format_label(j.opts.fmt, j.opts.quality)
         fm = self.title.fontMetrics()
         self.title.setText(fm.elidedText(j.title, Qt.ElideRight, max(self.title.width(), 200)))
         self.title.setToolTip(j.title)
@@ -251,7 +260,7 @@ class DownloadRow(QFrame):
             self.kind_icon.setPixmap(theme.icon("alert", theme.RED, 18).pixmap(18, 18))
         else:
             self.kind_icon.setStyleSheet("background: #2C2A36; border-radius: 8px;")
-            name = "music" if j.opts.fmt == "mp3" else "video"
+            name = FORMAT_ICONS.get(j.opts.fmt, "video")
             if j.state == "cancelled":
                 name = "close"
             self.kind_icon.setPixmap(theme.icon(name, theme.TEXT_2, 18).pixmap(18, 18))
@@ -292,6 +301,7 @@ class DownloadPage(QWidget):
         self.settings, self.manager = settings, manager
         self.info: MediaInfo | None = None
         self.info_url = ""
+        self.image_mode = False        # a Pinterest image pin: save the picture
         self.info_proc: QProcess | None = None
         self.net = QNetworkAccessManager(self)
         self.rows: dict[int, DownloadRow] = {}
@@ -299,8 +309,8 @@ class DownloadPage(QWidget):
 
         # Header
         h1 = label("What do you want to save?", "H1")
-        sub = label("Paste a YouTube or Instagram link. Clipnest saves the original file, "
-                    "with no watermark.", "Sub", wrap=True)
+        sub = label("Paste a link from YouTube, Instagram, Facebook, X, Vimeo or Pinterest. "
+                    "Clipnest saves the original file, with no watermark.", "Sub", wrap=True)
 
         # Engine setup banner
         self.setup_box = card()
@@ -412,10 +422,11 @@ class DownloadPage(QWidget):
         lay.addSpacing(20)
         lay.addWidget(self.preview)
         lay.addSpacing(24)
-        lay.addLayout(vbox(label("Format", "Label"), 10, fmt_grid))
-        lay.addSpacing(24)
-        lay.addLayout(vbox(label("Quality", "Label"), 10, hbox(self.pill_row, None)))
-        lay.addSpacing(24)
+        self.fmt_section = QWidget()
+        self.fmt_section.setLayout(vbox(
+            label("Format", "Label"), 10, fmt_grid, 24,
+            label("Quality", "Label"), 10, hbox(self.pill_row, None), 24))
+        lay.addWidget(self.fmt_section)
         lay.addLayout(hbox(options, None, save_box, spacing=24))
         lay.addSpacing(28)
         lay.addWidget(self.go)
@@ -492,17 +503,38 @@ class DownloadPage(QWidget):
             self.pill_group.addButton(btn)
             self.pill_row.addWidget(btn)
             self.pills[q] = btn
-        self.opt_cover.setVisible(fmt == "mp3")
-        self.opt_tags.setVisible(fmt == "mp3")
-        self.opt_subs.setVisible(fmt == "mp4")
-        self.save_dir.setText(self.settings[f"{fmt}_dir"])
+        self.apply_mode()
+
+    def apply_mode(self) -> None:
+        """Shows the controls that fit the format, or image mode for image pins."""
+        fmt, img = self.fmt(), self.image_mode
+        self.fmt_section.setVisible(not img)
+        self.opt_cover.setVisible(fmt == "mp3" and not img)
+        self.opt_tags.setVisible(fmt == "mp3" and not img)
+        self.opt_subs.setVisible(fmt == "mp4" and not img)
+        self.opt_playlist.setVisible(not img)
+        self.save_dir.setText(self.settings[f"{self.dir_key()}_dir"])
         self.update_button()
+
+    def dir_key(self) -> str:
+        return "mp4" if self.image_mode else self.fmt()     # images go with videos
+
+    def set_image_mode(self, on: bool) -> None:
+        if on != self.image_mode:
+            self.image_mode = on
+            self.apply_mode()
 
     def set_quality(self, q: str) -> None:
         self.settings.set(f"{self.fmt()}_quality", q)
         self.update_button()
 
     def update_button(self) -> None:
+        if self.image_mode:
+            size = self.info.image_size if self.info else None
+            self.go.setText("  Download image · original" +
+                            (f" ({size[0]} × {size[1]})" if size else ""))
+            self.go.setEnabled(self.engine_ready)
+            return
         fmt = self.fmt()
         q = self.settings[f"{fmt}_quality"]
         text = QUALITY_LABELS[fmt][q][0]
@@ -510,7 +542,7 @@ class DownloadPage(QWidget):
         self.go.setEnabled(self.engine_ready)
 
     def change_dir(self) -> None:
-        fmt = self.fmt()
+        fmt = self.dir_key()
         d = QFileDialog.getExistingDirectory(self, "Save downloads to", self.settings[f"{fmt}_dir"])
         if d:
             self.settings.set(f"{fmt}_dir", d)
@@ -542,6 +574,7 @@ class DownloadPage(QWidget):
         if not text.strip():
             self.preview.hide()
             self.info = None
+        self.set_image_mode(False)
         self.fetch_timer.start()
 
     def fetch_info(self) -> None:
@@ -596,7 +629,7 @@ class DownloadPage(QWidget):
         self.preview.show()
         self.chip_source.setText(detect_source(url) or "Link")
         self.chip_kind.setText("Looking up…")
-        self.media_title.setText("Getting video details…")
+        self.media_title.setText("Getting details…")
         self.media_meta.setText("")
         self.duration.hide()
         self.thumb.setPixmap(theme.icon("play", theme.MUTED, 28).pixmap(28, 28))
@@ -632,9 +665,13 @@ class DownloadPage(QWidget):
             meta.append(f"{info.entries} videos")
             if not self.opt_playlist.isChecked():
                 meta.append("tick “Download whole playlist” to get them all")
+        elif info.image_size:
+            meta.append(f"Original image, {info.image_size[0]} × {info.image_size[1]}")
         elif info.max_height:
             meta.append(f"Available up to {_height_name(info.max_height)}")
         self.media_meta.setText(" · ".join(meta))
+        self.set_image_mode(info.kind == "Image")
+        self.update_button()
         dur = format_duration(info.duration)
         self.duration.setText(dur)
         self.duration.adjustSize()
@@ -673,8 +710,9 @@ class DownloadPage(QWidget):
         if reason := unsupported_reason(url):
             self.show_link_error(url, reason)
             return
-        fmt = self.fmt()
-        out_dir = self.settings[f"{fmt}_dir"]
+        image = self.image_mode and self.info is not None and self.info_url == url
+        fmt = "image" if image else self.fmt()
+        out_dir = self.settings[f"{self.dir_key() if image else fmt}_dir"]
         try:
             Path(out_dir).mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -682,7 +720,8 @@ class DownloadPage(QWidget):
             self.link_error.show()
             return
         opts = JobOptions(
-            url=url, fmt=fmt, quality=self.settings[f"{fmt}_quality"], out_dir=out_dir,
+            url=url, fmt=fmt, out_dir=out_dir,
+            quality="original" if image else self.settings[f"{fmt}_quality"],
             cover_art=self.opt_cover.isChecked(), tags=self.opt_tags.isChecked(),
             subtitles=self.opt_subs.isChecked(), playlist=self.opt_playlist.isChecked(),
             cookies_browser=browsers.cookies_arg(self.settings["cookies_browser"]),
@@ -691,6 +730,7 @@ class DownloadPage(QWidget):
         self.manager.add(opts, title)
         self.link.clear()
         self.info_url = ""
+        self.set_image_mode(False)
 
     def add_row(self, job: Job) -> None:
         row = DownloadRow(job, self.manager)
@@ -771,15 +811,13 @@ class HistoryPage(QWidget):
         ic.setFixedSize(40, 40)
         ic.setAlignment(Qt.AlignCenter)
         ic.setStyleSheet("background: #2C2A36; border-radius: 8px;")
-        ic.setPixmap(theme.icon("music" if kind == "mp3" else "video", theme.TEXT_2).pixmap(18, 18))
+        ic.setPixmap(theme.icon(FORMAT_ICONS.get(kind, "video"), theme.TEXT_2).pixmap(18, 18))
         title = label(item.get("title", ""), None)
         title.setStyleSheet("font-weight: 600;")
         title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         when = time.strftime("%d %b %Y, %H:%M", time.localtime(item.get("time", 0)))
-        q = item.get("quality", "")
-        qtext = f"{q} kbps" if kind == "mp3" else QUALITY_LABELS["mp4"].get(q, (q,))[0]
         extra = f" · {len(files)} files" if len(files) > 1 else ""
-        meta = label(f"{kind.upper()} · {qtext}{extra} · {when}" +
+        meta = label(f"{format_label(kind, item.get('quality', ''))}{extra} · {when}" +
                      ("" if exists else " · file moved or deleted"), "Small")
         lay = hbox(ic, 14, vbox(title, 4, meta), 10, spacing=6, margins=(16, 12, 12, 12))
         lay.setStretch(2, 1)
@@ -788,8 +826,8 @@ class HistoryPage(QWidget):
                 play = QPushButton()
                 play.setObjectName("IconButton")
                 play.setIcon(theme.icon("play", theme.TEXT_2, 16))
-                play.setToolTip("Play")
-                play.setAccessibleName("Play file")
+                play.setToolTip("Open")
+                play.setAccessibleName("Open file")
                 play.clicked.connect(lambda: open_file(files[0]))
                 lay.addWidget(play)
             folder = QPushButton("Open folder")
@@ -855,11 +893,12 @@ class SettingsPage(QWidget):
 
         lay = vbox(
             label("Settings", "H1"), 28,
-            section("Save locations", folder_row("mp3", "MP3 audio"), folder_row("mp4", "MP4 video")),
+            section("Save locations", folder_row("mp3", "MP3 audio"), folder_row("mp4", "MP4 video and images")),
             20,
             section("Logins",
-                    label("Most downloads don't need this. Private Instagram posts, and "
-                          "YouTube when it asks you to confirm you're not a bot, need you to "
+                    label("Many downloads don't need this. Instagram, private Facebook and "
+                          "X posts, Vimeo videos that ask for a login, and YouTube when it "
+                          "asks you to confirm you're not a bot, need you to "
                           "be logged in: choose the browser where you're logged in and "
                           "Clipnest will use that login. Only browsers installed on this PC "
                           "are listed. Firefox works most reliably; Chrome and Edge often "

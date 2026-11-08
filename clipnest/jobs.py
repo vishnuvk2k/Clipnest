@@ -34,6 +34,10 @@ _SOURCES = [
     (re.compile(r"(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$"), "YouTube"),
     (re.compile(r"(^|\.)music\.youtube\.com$"), "YouTube Music"),
     (re.compile(r"(^|\.)(instagram\.com|instagr\.am)$"), "Instagram"),
+    (re.compile(r"(^|\.)(facebook\.com|fb\.watch|fb\.com)$"), "Facebook"),
+    (re.compile(r"(^|\.)(x\.com|twitter\.com)$"), "X"),
+    (re.compile(r"(^|\.)vimeo\.com$"), "Vimeo"),
+    (re.compile(r"(^|\.)(pinterest\.[a-z]{2,3}(\.[a-z]{2})?|pin\.it)$"), "Pinterest"),
 ]
 _URL_RE = re.compile(r"^https?://([^/\s?#]+)", re.IGNORECASE)
 
@@ -53,6 +57,21 @@ def detect_source(url: str) -> str | None:
 _IG_AUDIO_RE = re.compile(r"^https?://(www\.)?instagram\.com/(reels/)?audio/", re.IGNORECASE)
 
 
+# Facebook titles start with view and reaction counts and end with the page name:
+# "9.9K views · 340 reactions | The actual caption | Page name".
+_COUNT = r"[\d.,]+[KMB]? (?:views?|reactions?|shares?|comments?|likes?|plays?)"
+FACEBOOK_TITLE_RE = rf"^(?:{_COUNT} · )*{_COUNT} \| (.+?)(?: \| [^|]+)?$"
+PINTEREST_TITLE_RE = r"^Pinterest video #(\d+)$"     # pins without a title
+
+
+def clean_title(title: str, source: str) -> str:
+    if source == "Facebook":
+        title = re.sub(FACEBOOK_TITLE_RE, r"\1", title)
+    elif source == "Pinterest":
+        title = re.sub(PINTEREST_TITLE_RE, r"Pinterest \1", title)
+    return title
+
+
 def unsupported_reason(url: str) -> str | None:
     """A message for links we know can't be downloaded, before trying."""
     if _IG_AUDIO_RE.match(url.strip()):
@@ -64,9 +83,10 @@ def unsupported_reason(url: str) -> str | None:
 @dataclass
 class JobOptions:
     url: str
-    fmt: str                      # "mp3" | "mp4"
+    fmt: str                      # "mp3" | "mp4" | "image" (Pinterest image pins)
     quality: str                  # kbps for mp3, max height for mp4
-    out_dir: str
+    out_dir: str                  # where the user wants the files
+    work_dir: str = ""            # where yt-dlp works; finished files are moved to out_dir
     cover_art: bool = True
     tags: bool = True
     subtitles: bool = False
@@ -91,10 +111,15 @@ def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
         "--progress-template", POSTPROCESS_TEMPLATE,
         "--print", f"video:{TITLE_TAG}\t%(title)s",
         "--print", f"after_move:{FILE_TAG}\t%(filepath)s",
-        "-P", opts.out_dir,
+        "-P", opts.work_dir or opts.out_dir,
         "-o", OUTPUT_TEMPLATE,
         "--yes-playlist" if opts.playlist else "--no-playlist",
     ]
+    source = detect_source(opts.url)
+    if source == "Facebook":
+        args += ["--replace-in-metadata", "title", FACEBOOK_TITLE_RE, r"\g<1>"]
+    elif source == "Pinterest":
+        args += ["--replace-in-metadata", "title", PINTEREST_TITLE_RE, r"Pinterest \g<1>"]
     if opts.ffmpeg_dir:
         args += ["--ffmpeg-location", opts.ffmpeg_dir]
     if opts.cookies_browser:
@@ -127,6 +152,12 @@ def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
         ]
         if opts.subtitles:
             args += ["--write-subs", "--sub-langs", "en.*,en", "--embed-subs"]
+    elif opts.fmt == "image":
+        # Image pins have no video: save the largest picture (Pinterest's original).
+        args += [
+            "--ignore-no-formats-error", "--skip-download", "--write-thumbnail",
+            "--print", f"after_video:{FILE_TAG}\t%(thumbnails.-1.filepath)s",
+        ]
     else:
         raise ValueError(f"unknown format {opts.fmt!r}")
 
@@ -141,6 +172,8 @@ def info_args(ytdlp: str, url: str, cookies_browser: str = "", deno: str = "") -
         args += ["--cookies-from-browser", cookies_browser]
     if deno:
         args += ["--js-runtimes", f"deno:{deno}"]
+    if detect_source(url) == "Pinterest":
+        args += ["--ignore-no-formats-error"]     # image pins have no video formats
     return args + ["--", url]
 
 
@@ -155,6 +188,7 @@ class MediaInfo:
     entries: int = 0
     max_height: int = 0
     kind: str = "Video"
+    image_size: tuple[int, int] | None = None    # set for image pins
 
 
 def parse_info(raw: str) -> MediaInfo:
@@ -168,17 +202,29 @@ def parse_info(raw: str) -> MediaInfo:
         first = entries[0] or {}
         thumbs = first.get("thumbnails") or []
         thumb = first.get("thumbnail") or (thumbs[-1].get("url", "") if thumbs else "")
-    heights = [f.get("height") or 0 for f in data.get("formats") or []]
+    formats = data.get("formats") or []
+    heights = [f.get("height") or 0 for f in formats]
     extractor = data.get("extractor_key") or data.get("extractor") or ""
+    ex = extractor.lower()
+    source = {"facebook": "Facebook", "twitter": "X", "pinterest": "Pinterest"}.get(ex, "")
+    image_size = None
     if is_playlist:
         kind = "Playlist"
-    elif "instagram" in extractor.lower():
+    elif "instagram" in ex:
         kind = "Reel / post"
+    elif source == "Pinterest" and not formats and data.get("thumbnails"):
+        kind = "Image"
+        biggest = data["thumbnails"][-1]
+        if biggest.get("width") and biggest.get("height"):
+            image_size = (biggest["width"], biggest["height"])
+    elif source == "X":
+        kind = "Post"
     else:
         kind = "Video"
+    uploader = data.get("uploader") or data.get("channel") or ""
     return MediaInfo(
-        title=data.get("title") or data.get("id") or "Untitled",
-        uploader=data.get("uploader") or data.get("channel") or "",
+        title=clean_title(data.get("title") or data.get("id") or "Untitled", source),
+        uploader="" if uploader == "NA" else uploader,
         duration=data.get("duration"),
         thumbnail=thumb,
         source=extractor.replace("Tab", "").replace("Playlist", ""),
@@ -186,6 +232,7 @@ def parse_info(raw: str) -> MediaInfo:
         entries=data.get("playlist_count") or len(entries),
         max_height=max(heights, default=0),
         kind=kind,
+        image_size=image_size,
     )
 
 
@@ -284,12 +331,29 @@ def friendly_error(log: str) -> str:
     if "dpapi" in low or "app-bound" in low or ("decrypt" in low and "cookie" in low):
         return ("Windows blocks reading this browser's login. In Settings → Logins, choose "
                 "Firefox, or “Don't use a browser login”.")
-    if "private" in low or "login required" in low or "log in" in low or "rate-limit" in low:
-        return ("This needs you to be logged in. In Settings, choose the browser "
-                "you're logged in with, then try again.")
     if "sign in to confirm" in low:
         return ("YouTube asked to confirm you're not a bot. In Settings, choose the "
                 "browser you're logged in with, then try again.")
+    if "[drm]" in low or "drm protection" in low:
+        return "This site protects its media with DRM, so it can't be downloaded."
+    if "instagram" in low and ("empty media response" in low or "not granting access" in low):
+        return ("Instagram only shows this to logged-in people. In Settings → Logins, choose "
+                "the browser where you're logged in to Instagram (Firefox works best), "
+                "then try again.")
+    if "no video could be found in this" in low:
+        return "This post has no video."
+    if "http error 429" in low or "too many requests" in low:
+        return ("The site is limiting downloads right now. Wait a few minutes, or log in "
+                "with a browser in Settings → Logins, then try again.")
+    if "[vimeo]" in low and ("logged-in" in low or "logged in" in low):
+        return ("Vimeo only lets logged-in people download. Log in to Vimeo in your browser "
+                "(a free account works), choose that browser in Settings → Logins, then "
+                "try again.")
+    if ("private" in low or "login required" in low or "log in" in low or "logged-in" in low
+            or "logged in" in low or "authentication is required" in low
+            or "rate-limit" in low or "cookies for the authentication" in low):
+        return ("This needs you to be logged in. In Settings → Logins, choose the browser "
+                "you're logged in with, then try again.")
     if "http error 404" in low:
         return "Couldn't find anything at this link. Check that it's complete."
     if "unable to download" in low and ("getaddrinfo" in low or "timed out" in low or "network" in low):

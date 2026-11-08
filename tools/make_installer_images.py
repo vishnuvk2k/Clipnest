@@ -49,7 +49,7 @@ def side_panel(scale: float) -> QImage:
     p.setFont(f)
     p.setPen(QColor("#E6E0FF"))
     p.drawText(QRectF(8 * scale, 218 * scale, w - 16 * scale, 60 * scale),
-               Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap, "MP3 & MP4 downloader\nfor YouTube & Instagram")
+               Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap, "MP3 & MP4 downloader\nfor YouTube, Instagram\nand more")
     p.end()
     return img
 

@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import itertools
+import os
+import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 
@@ -12,6 +16,57 @@ from . import engine
 from .jobs import JobOptions, LineEvent, build_args, format_bytes, friendly_error, parse_line
 
 MAX_PARALLEL = 2
+STALE_WORK_SECONDS = 12 * 3600
+
+
+def work_root() -> Path:
+    return engine.data_dir() / "work"
+
+
+def clean_old_work_dirs(root: Path | None = None) -> None:
+    """Removes work folders left behind by a crash or a forced shutdown."""
+    root = root or work_root()
+    if not root.is_dir():
+        return
+    for d in root.iterdir():
+        try:
+            if time.time() - d.stat().st_mtime > STALE_WORK_SECONDS:
+                shutil.rmtree(d, ignore_errors=True)
+        except OSError:
+            pass
+
+
+def unique_path(path: Path) -> Path:
+    """'song.mp3' -> 'song (2).mp3' when the name is taken, never overwriting."""
+    if not path.exists():
+        return path
+    for n in itertools.count(2):
+        candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
+        if not candidate.exists():
+            return candidate
+
+
+def move_finished(files: list[str], work_dir: Path, out_dir: Path) -> list[str]:
+    """Moves finished files from the work folder into the user's folder.
+
+    yt-dlp never sees the user's folder, so it can't reuse (and then delete) a
+    file that's already there, e.g. the MP4 of a video now being saved as MP3.
+    Playlist subfolders are kept.
+    """
+    moved = []
+    for f in files:
+        src = Path(f)
+        if not src.is_file():
+            continue
+        try:
+            rel = src.resolve().relative_to(work_dir.resolve())
+        except ValueError:
+            rel = Path(src.name)
+        dest = unique_path(out_dir / rel)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dest))
+        moved.append(str(dest))
+    return moved
 
 _ids = itertools.count(1)
 
@@ -42,6 +97,7 @@ class DownloadManager(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.jobs: list[Job] = []
+        clean_old_work_dirs()
 
     def add(self, opts: JobOptions, title: str) -> Job:
         job = Job(opts=opts, title=title)
@@ -66,6 +122,7 @@ class DownloadManager(QObject):
                 job.state = "cancelled"
                 self._kill_tree(job.process)
                 job.process.waitForFinished(3000)
+                shutil.rmtree(job.opts.work_dir, ignore_errors=True)
 
     # -- internals ---------------------------------------------------------
 
@@ -94,6 +151,10 @@ class DownloadManager(QObject):
         job.opts.ffmpeg_dir = str(ffmpeg.parent) if ffmpeg else ""
         deno = engine.deno_path()
         job.opts.deno = str(deno) if deno else ""
+        work = work_root() / f"{os.getpid()}-{job.id}"
+        shutil.rmtree(work, ignore_errors=True)
+        work.mkdir(parents=True)
+        job.opts.work_dir = str(work)
         args = build_args(str(ytdlp), job.opts)
 
         proc = QProcess(self)
@@ -169,10 +230,19 @@ class DownloadManager(QObject):
             job._buffer = ""
         if job.state == "cancelled":
             self._finish(job, "cancelled", "Cancelled")
-        elif code == 0:
+            return
+        # Keep whatever finished, even when a later playlist item failed.
+        try:
+            job.files = move_finished(job.files, Path(job.opts.work_dir), Path(job.opts.out_dir))
+        except OSError as exc:
+            self._finish(job, "error", f"Couldn't save the file to {job.opts.out_dir}: {exc}")
+            return
+        if code == 0 and job.files:
             job.fraction = 1.0
             n = len(job.files)
-            self._finish(job, "done", "Done" if n <= 1 else f"Done · {n} files")
+            self._finish(job, "done", "Done" if n == 1 else f"Done · {n} files")
+        elif code == 0:
+            self._finish(job, "error", "Nothing was downloaded from this link.")
         else:
             self._finish(job, "error", friendly_error("\n".join(job.log)))
 
@@ -188,6 +258,8 @@ class DownloadManager(QObject):
         if job.process is not None:
             job.process.deleteLater()
             job.process = None
+        if job.opts.work_dir:
+            shutil.rmtree(job.opts.work_dir, ignore_errors=True)
         self.job_changed.emit(job)
         self.job_finished.emit(job)
         self._pump()

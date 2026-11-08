@@ -15,11 +15,12 @@ Clipnest is a tool for saving media. By installing it, you agree that:
     reuse (for example Creative Commons or public domain), or content you
     otherwise have the right to save.
   - You will respect creators' copyright and the terms of service of the
-    websites you use, including YouTube and Instagram.
+    websites you use, including YouTube, Instagram, Facebook, X, Vimeo and
+    Pinterest.
   - You are responsible for how you use the files you download.
 
 Clipnest is not affiliated with, endorsed by or connected to YouTube, Google,
-Instagram or Meta.
+Instagram, Facebook, Meta, X, Vimeo or Pinterest.
 
 3. THIRD-PARTY COMPONENTS
 
