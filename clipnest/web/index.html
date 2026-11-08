@@ -166,6 +166,10 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
 }
 
 .gate { text-align: center; padding: 40px 8px; }
+.notice { margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; font-size: 14px; color: var(--text-2);
+  background: rgba(110, 78, 247, .1); border: 1px solid rgba(168, 151, 255, .25); }
+.app-link { color: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+.job .app-link { display: inline-block; margin-top: 4px; font-size: 13.5px; }
 .login { max-width: 380px; margin: 24px auto 0; display: grid; gap: 12px; text-align: left; }
 .login .go { margin-top: 0; }
 .small-print { font-size: 13.5px; text-align: center; margin: 4px 0 0; }
@@ -299,6 +303,13 @@ if (params.get("key")) {
   history.replaceState(null, "", location.pathname);
 }
 let KEY = store.get("clipnest-key", "");
+// Clipnest Online (the public website) says so in /api/hello; then there's no
+// sign-in, and KEY is just a random ID that keeps each browser's downloads apart.
+let PUBLIC = null;
+function randomId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 const DEVICE = /android|iphone|ipod/i.test(navigator.userAgent) ? "phone"
              : /ipad|tablet/i.test(navigator.userAgent) ? "tablet" : "device";
 
@@ -327,11 +338,15 @@ function setConnection(ok, ready = true) {
   $("offline").hidden = ok;
   const c = $("conn");
   c.className = "conn " + (ok ? "ok" : "bad");
-  $("conn-text").textContent = ok ? (ready ? "Your computer is online" : "Your computer is setting up…")
-                                  : "Not connected";
+  $("conn-text").textContent = PUBLIC ? (ok ? "Online" : "Can't connect")
+    : ok ? (ready ? "Your computer is online" : "Your computer is setting up…") : "Not connected";
 }
 
 async function showGate() {
+  if (PUBLIC) {                       // a new visitor ID, no sign-in needed
+    KEY = randomId(); store.set("clipnest-key", KEY);
+    return boot();
+  }
   KEY = ""; store.set("clipnest-key", "");
   $("gate").hidden = false;
   $("app").hidden = true;
@@ -384,7 +399,12 @@ function renderFormat() {
   document.querySelectorAll(".fmt").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.fmt === fmt)));
   const pills = $("pills");
   pills.replaceChildren();
-  for (const [q, text, tag] of QUALITIES[fmt]) {
+  let choices = QUALITIES[fmt];
+  if (PUBLIC && fmt === "mp4") {
+    choices = choices.filter(([q]) => +q <= +PUBLIC.max_quality);
+    if (!choices.some(([q]) => q === quality.mp4)) quality.mp4 = choices[0][0];
+  }
+  for (const [q, text, tag] of choices) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "pill";
     b.setAttribute("aria-pressed", String(q === quality[fmt]));
@@ -418,8 +438,16 @@ document.querySelectorAll(".fmt").forEach((b) => b.addEventListener("click", () 
 
 function isLink(text) { return /^https?:\/\/\S+$/i.test(text); }
 
-function showError(text) {
+function appLink(url) {
+  const a = document.createElement("a");
+  a.href = url; a.target = "_blank"; a.rel = "noopener";
+  a.className = "app-link"; a.textContent = "Get the free Clipnest app";
+  return a;
+}
+
+function showError(text, appUrl) {
   $("link-error").textContent = text;
+  if (text && appUrl) { $("link-error").append(" ", appLink(appUrl)); }
   $("link-error").hidden = !text;
 }
 
@@ -456,7 +484,7 @@ async function lookup(url) {
   let r;
   try { r = await api("/api/info", { url }); } catch { return; }
   if (seq !== lookupSeq || url !== $("link").value.trim()) return;
-  if (r.error) { $("preview").hidden = true; showError(r.error); return; }
+  if (r.error) { $("preview").hidden = true; showError(r.error, r.app_url); return; }
   info = r; infoUrl = url;
   $("p-source").textContent = r.source || "Link";
   $("p-kind").textContent = r.kind;
@@ -519,7 +547,7 @@ async function start() {
       playlist: !$("playlist-row").hidden && $("playlist").checked,
       title: info && infoUrl === url ? info.title : "",
     });
-    if (r.error) { if ($("link").value.trim() === url) showError(r.error); return; }
+    if (r.error) { if ($("link").value.trim() === url) showError(r.error, r.app_url); return; }
     if ($("link").value.trim() === url) { $("link").value = ""; onLinkChanged(); }   // not a newer link
     refreshJobs();
   } catch { /* shown by api() */ } finally {
@@ -562,6 +590,7 @@ function renderJobs(jobs) {
     const t = document.createElement("div"); t.className = "job-title"; t.textContent = j.title;
     const s = document.createElement("div"); s.className = "job-status"; s.textContent = `${fmtLabel(j)} · ${j.status}`;
     body.append(t, s);
+    if (j.state === "error" && j.app_url) body.append(appLink(j.app_url));
     top.append(ic, body);
     if (j.state === "queued" || j.state === "running") {
       const x = document.createElement("button");
@@ -615,13 +644,38 @@ async function refreshJobs() {
   jobsTimer = setTimeout(refreshJobs, busy ? 1000 : 4000);
 }
 
+function applyPublic(h) {
+  document.title = "Clipnest Online";
+  const mp4Hint = document.querySelector('.fmt[data-fmt="mp4"] b + span');
+  if (mp4Hint) mp4Hint.textContent = `720p to ${h.max_quality}p`;
+  document.querySelector(".brand .tag").textContent = "Online";
+  $("offline").textContent = "Can't reach Clipnest Online. Check your internet connection.";
+  document.querySelector(".note span").textContent =
+    `Your files are ready to save for ${h.keep_minutes} minutes, then they're deleted from this website.`;
+  if (h.notice) {
+    const n = document.createElement("p");
+    n.className = "notice";
+    n.textContent = h.notice + " ";
+    if (h.app_url) n.append(appLink(h.app_url));
+    document.querySelector(".sites").after(n);
+  }
+}
+
 async function boot() {
+  if (PUBLIC === null) {
+    try {
+      const h = await (await fetch("/api/hello")).json();
+      PUBLIC = h.public ? h : false;
+    } catch { PUBLIC = false; }
+    if (PUBLIC) applyPublic(PUBLIC);
+  }
+  if (!KEY && PUBLIC) { KEY = randomId(); store.set("clipnest-key", KEY); }
   if (!KEY) { showGate(); return; }
   try {
     const s = await api("/api/status");
     setConnection(true, s.ready);
     $("app").hidden = false;
-    $("signout").hidden = false;
+    $("signout").hidden = !!PUBLIC;
     renderFormat();
     refreshJobs();
   } catch (e) {

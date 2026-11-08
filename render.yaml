@@ -1,0 +1,15 @@
+# One-click setup on Render (render.com): New → Blueprint → pick this repository.
+services:
+  - type: web
+    name: clipnest
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: CLIPNEST_MAX_ACTIVE
+        value: "2"
+      - key: CLIPNEST_KEEP_MINUTES
+        value: "30"
