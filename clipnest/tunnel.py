@@ -16,6 +16,14 @@ from . import engine
 RETRY_SECONDS = 30
 
 
+def normalize_address(text: str) -> str:
+    """'getclipnest.com' -> 'https://getclipnest.com'."""
+    text = text.strip().rstrip("/")
+    if text and "://" not in text:
+        text = "https://" + text
+    return text
+
+
 def parse_token(text: str) -> str:
     """Accepts the bare token or the whole install command Cloudflare shows."""
     words = text.strip().split()

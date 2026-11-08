@@ -25,7 +25,7 @@ from .jobs import (
     info_args, parse_info, unsupported_reason,
 )
 from .store import History, Settings
-from .tunnel import Tunnel, parse_token
+from .tunnel import Tunnel, normalize_address, parse_token
 from .web import MIN_PASSWORD, WebServer
 
 QUALITY_LABELS = {
@@ -754,14 +754,6 @@ def _height_name(h: int) -> str:
     if h >= 1440:
         return "1440p"
     return f"{h}p"
-
-
-def normalize_address(text: str) -> str:
-    """'getclipnest.com' -> 'https://getclipnest.com'."""
-    text = text.strip().rstrip("/")
-    if text and "://" not in text:
-        text = "https://" + text
-    return text
 
 
 def qr_pixmap(text: str, size: int, dpr: float) -> QPixmap:

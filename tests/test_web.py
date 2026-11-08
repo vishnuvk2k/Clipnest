@@ -165,7 +165,7 @@ def test_tunnel_helpers():
 
 
 def test_normalize_address():
-    from clipnest.app import normalize_address
+    from clipnest.tunnel import normalize_address
     assert normalize_address(" getclipnest.com/ ") == "https://getclipnest.com"
     assert normalize_address("https://web.getclipnest.com") == "https://web.getclipnest.com"
     assert normalize_address("") == ""
