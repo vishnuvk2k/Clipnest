@@ -106,6 +106,7 @@ h1 { font: 800 28px/1.15 var(--display); letter-spacing: -0.02em; margin: 14px 0
 h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
 .empty { color: var(--muted); font-size: 14.5px; }
 .jobs { display: grid; gap: 10px; }
+.compose, .queue, .job { min-width: 0; }
 .job { padding: 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
 .job-top { display: flex; align-items: flex-start; gap: 12px; }
 .job-icon { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--card-2); color: var(--text-2); flex: none; }
@@ -126,6 +127,43 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
 .save.ghost { background: var(--card-2); border: 1px solid var(--line); color: var(--text); }
 .note { margin-top: 30px; color: var(--muted); font-size: 13.5px; text-align: center; }
 
+.brand .tag { font: 600 11px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--accent-soft);
+  padding: 4px 7px; border-radius: 6px; background: rgba(110, 78, 247, .16); margin-left: -2px; }
+.sites { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13.5px; font-weight: 500; }
+.sites li { display: inline-flex; align-items: center; gap: 6px; }
+.sites span { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.queue-head { display: flex; align-items: center; justify-content: space-between; margin: 36px 0 12px; }
+.queue-head h2 { margin: 0; }
+.link-btn { border: 0; background: none; color: var(--accent-soft); font-weight: 600; font-size: 14px; padding: 6px 4px; }
+.link-btn:hover { color: #C9BEFF; }
+.empty { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 28px 18px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); font-size: 14px; }
+.empty b { color: var(--text); font-size: 15px; }
+.empty-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--card-2); color: var(--accent-soft); margin-bottom: 4px; }
+.note { display: flex; gap: 10px; align-items: flex-start; text-align: left; }
+.note .i { width: 18px; height: 18px; margin-top: 1px; color: var(--muted); }
+.empty[hidden] { display: none; }
+
+/* Computers and tablets: paste on the left, downloads on the right */
+@media (min-width: 980px) {
+  .page { width: min(1200px, 100%); padding: 0 32px 48px; }
+  header { height: 76px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 40px; align-items: start; }
+  .compose { padding-top: 18px; }
+  h1 { font-size: 40px; margin-top: 18px; }
+  .sub { font-size: 17px; margin-bottom: 14px; }
+  .sites { margin-bottom: 18px; }
+  .thumb { width: 192px; }
+  .p-title { font-size: 17px; }
+  .formats { gap: 12px; }
+  .fmt { padding: 16px; }
+  .queue {
+    position: sticky; top: 24px; margin-top: 36px; padding: 22px; border-radius: 18px;
+    background: #1B1A23; border: 1px solid var(--line);
+  }
+  .queue-head { margin-top: 0; }
+  .queue .job { background: var(--card); }
+}
+
 .gate { text-align: center; padding: 40px 8px; }
 .gate img { margin: 0 auto 18px; display: block; }
 .gate ol { text-align: left; color: var(--text-2); display: grid; gap: 8px; padding-left: 22px; margin: 20px auto 0; max-width: 420px; }
@@ -145,12 +183,13 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></symbol>
+  <symbol id="i-pc" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
   <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 15v-6M9.5 12.5L12 15l2.5-2.5"/></symbol>
 </svg>
 
 <div class="page">
   <header>
-    <div class="brand"><img src="logo.svg" width="32" height="32" alt="">Clipnest</div>
+    <div class="brand"><img src="logo.svg" width="32" height="32" alt="">Clipnest<span class="tag">Web</span></div>
     <div class="conn" id="conn" role="status"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
   </header>
 
@@ -167,9 +206,15 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
     </ol>
   </section>
 
-  <main id="app" hidden>
+  <main id="app" class="layout" hidden>
+   <section class="compose" aria-label="New download">
     <h1>What do you want to save?</h1>
-    <p class="sub">Paste a link from YouTube, Instagram, Facebook, X, Vimeo or Pinterest.</p>
+    <p class="sub">Paste a link and get the original file, with no watermark.</p>
+    <ul class="sites" aria-label="Works with">
+      <li><span style="--c:#FF4E45"></span>YouTube</li><li><span style="--c:#E1306C"></span>Instagram</li>
+      <li><span style="--c:#1877F2"></span>Facebook</li><li><span style="--c:#E7E7EA"></span>X</li>
+      <li><span style="--c:#1AB7EA"></span>Vimeo</li><li><span style="--c:#E60023"></span>Pinterest</li>
+    </ul>
 
     <div class="link-row">
       <label class="link-box">
@@ -203,12 +248,21 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
     <label class="check" id="playlist-row" hidden><input type="checkbox" id="playlist"> Download the whole playlist</label>
 
     <button class="go" id="go" type="button"><svg class="i"><use href="#i-download"/></svg><span id="go-text">Download</span></button>
+   </section>
 
-    <h2>Downloads</h2>
-    <p class="empty" id="empty">Your downloads will show up here, ready to save to this phone.</p>
+   <aside class="queue" aria-labelledby="queue-title">
+    <div class="queue-head">
+      <h2 id="queue-title">Downloads</h2>
+      <button class="link-btn" id="clear-done" type="button" hidden>Clear finished</button>
+    </div>
+    <div class="empty" id="empty">
+      <span class="empty-icon"><svg class="i"><use href="#i-download"/></svg></span>
+      <b>Nothing here yet</b>
+      <span>Paste a link to start. Finished files appear here, ready to save to this device.</span>
+    </div>
     <div class="jobs" id="jobs"></div>
-
-    <p class="note">Downloads run on your computer, using its internet connection, and are also kept in its Downloads folder. Keep Clipnest open on your computer.</p>
+    <p class="note"><svg class="i"><use href="#i-pc"/></svg><span>Downloads run on your computer with Clipnest, and a copy stays in its Downloads folder.</span></p>
+   </aside>
   </main>
 </div>
 
@@ -232,6 +286,8 @@ if (params.get("key")) {
   history.replaceState(null, "", location.pathname);
 }
 const KEY = store.get("clipnest-key", "");
+const DEVICE = /android|iphone|ipod/i.test(navigator.userAgent) ? "phone"
+             : /ipad|tablet/i.test(navigator.userAgent) ? "tablet" : "device";
 
 let fmt = store.get("clipnest-fmt", "mp3");
 const quality = { mp3: store.get("clipnest-q-mp3", "320"), mp4: store.get("clipnest-q-mp4", "1080") };
@@ -258,7 +314,7 @@ function setConnection(ok, ready = true) {
   $("offline").hidden = ok;
   const c = $("conn");
   c.className = "conn " + (ok ? "ok" : "bad");
-  $("conn-text").textContent = ok ? (ready ? "Connected to your computer" : "Your computer is setting up…")
+  $("conn-text").textContent = ok ? (ready ? "Your computer is online" : "Your computer is setting up…")
                                   : "Not connected";
 }
 
@@ -430,8 +486,16 @@ function size(n) {
   return n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
+// Finished downloads this device has cleared from its list (they stay on the computer).
+const cleared = new Set(JSON.parse(store.get("clipnest-cleared", "[]")));
+let lastJobs = [], run = "";
+const jobKey = (j) => `${run}:${j.id}`;
+
 function renderJobs(jobs) {
+  lastJobs = jobs;
+  jobs = jobs.filter((j) => !cleared.has(jobKey(j)));
   $("empty").hidden = jobs.length > 0;
+  $("clear-done").hidden = !jobs.some((j) => !["queued", "running"].includes(j.state));
   const list = $("jobs");
   list.replaceChildren();
   for (const j of jobs) {
@@ -468,7 +532,7 @@ function renderJobs(jobs) {
         a.setAttribute("download", f.name);
         a.append(icon("i-phone"));
         const label = document.createElement("span");
-        label.textContent = j.files.length === 1 ? `Save to this phone · ${size(f.size)}` : f.name;
+        label.textContent = j.files.length === 1 ? `Save to this ${DEVICE} · ${size(f.size)}` : f.name;
         a.append(label);
         saves.append(a);
       });
@@ -478,11 +542,18 @@ function renderJobs(jobs) {
   }
 }
 
+$("clear-done").addEventListener("click", () => {
+  for (const j of lastJobs) if (!["queued", "running"].includes(j.state)) cleared.add(jobKey(j));
+  store.set("clipnest-cleared", JSON.stringify([...cleared].slice(-500)));
+  renderJobs(lastJobs);
+});
+
 async function refreshJobs() {
   clearTimeout(jobsTimer);
   let busy = false;
   try {
     const r = await api("/api/jobs");
+    run = r.run || "";
     renderJobs(r.jobs);
     busy = r.jobs.some((j) => j.state === "queued" || j.state === "running");
   } catch (e) {

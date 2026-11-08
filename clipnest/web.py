@@ -33,6 +33,7 @@ from .jobs import (
 )
 
 DEFAULT_PORT = 8765
+RUN_ID = secrets.token_hex(4)      # job numbers restart with the app; this tells runs apart
 PORT_TRIES = 10
 WEB_DIR = Path(__file__).with_name("web")
 STATIC_FILES = {"/logo.svg": "logo.svg", "/icon.png": "icon.png",
@@ -349,7 +350,7 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             self._json({"ready": self.app.engine_ready(), "version": __version__})
         elif path == "/api/jobs":
-            self._json({"jobs": self.app.web_jobs()})
+            self._json({"jobs": self.app.web_jobs(), "run": RUN_ID})
         elif path.startswith("/api/file/"):
             self._file(path)
         else:
