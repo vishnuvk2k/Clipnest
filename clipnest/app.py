@@ -25,7 +25,8 @@ from .jobs import (
     info_args, parse_info, unsupported_reason,
 )
 from .store import History, Settings
-from .web import WebServer
+from .tunnel import Tunnel, parse_token
+from .web import MIN_PASSWORD, WebServer
 
 QUALITY_LABELS = {
     "mp3": {"320": ("320 kbps", "Best"), "256": ("256 kbps", ""),
@@ -755,6 +756,14 @@ def _height_name(h: int) -> str:
     return f"{h}p"
 
 
+def normalize_address(text: str) -> str:
+    """'getclipnest.com' -> 'https://getclipnest.com'."""
+    text = text.strip().rstrip("/")
+    if text and "://" not in text:
+        text = "https://" + text
+    return text
+
+
 def qr_pixmap(text: str, size: int, dpr: float) -> QPixmap:
     """A crisp QR code for the Clipnest Web link."""
     import io
@@ -857,9 +866,9 @@ class HistoryPage(QWidget):
 class SettingsPage(QWidget):
     update_requested = Signal()
 
-    def __init__(self, settings: Settings, web: WebServer):
+    def __init__(self, settings: Settings, web: WebServer, tunnel: Tunnel):
         super().__init__()
-        self.settings, self.web = settings, web
+        self.settings, self.web, self.tunnel = settings, web, tunnel
         self.dir_labels: dict[str, QLabel] = {}
 
         def section(title: str, *rows) -> QFrame:
@@ -929,6 +938,52 @@ class SettingsPage(QWidget):
         self.web_error = label("", "Error", wrap=True)
         self.web.state_changed.connect(self.refresh_web)
 
+        # Website password (needed on your own domain)
+        self.pw_status = label("", "Small", wrap=True)
+        self.pw_edit = QLineEdit()
+        self.pw_edit.setEchoMode(QLineEdit.Password)
+        self.pw_edit.setPlaceholderText(f"New password ({MIN_PASSWORD}+ characters)")
+        self.pw_edit.setAccessibleName("Website password")
+        self.pw_edit.setMinimumWidth(280)
+        self.pw_edit.setMaximumWidth(340)
+        self.pw_edit.returnPressed.connect(self.save_password)
+        pw_save = QPushButton("Save password")
+        pw_save.setObjectName("SmallButton")
+        pw_save.clicked.connect(self.save_password)
+        self.pw_remove = QPushButton("Remove")
+        self.pw_remove.setObjectName("SmallButton")
+        self.pw_remove.clicked.connect(self.remove_password)
+        self.pw_error = label("", "Error", wrap=True)
+        self.pw_error.hide()
+
+        # Your website: Cloudflare Tunnel
+        self.site_address = QLineEdit(settings["tunnel_address"])
+        self.site_address.setPlaceholderText("https://getclipnest.com")
+        self.site_address.setAccessibleName("Your website address")
+        self.site_address.editingFinished.connect(self.save_address)
+        self.site_token = QLineEdit(settings["tunnel_token"])
+        self.site_token.setEchoMode(QLineEdit.Password)
+        self.site_token.setPlaceholderText("Paste the tunnel token from Cloudflare")
+        self.site_token.setAccessibleName("Cloudflare tunnel token")
+        self.site_token.editingFinished.connect(self.save_token)
+        self.site_toggle = QCheckBox("Put Clipnest Web on my website")
+        self.site_toggle.setChecked(settings["tunnel_enabled"])
+        self.site_toggle.toggled.connect(self.set_site_enabled)
+        self.site_dot = QLabel()
+        self.site_dot.setFixedSize(10, 10)
+        self.site_status = label("", "Small", wrap=True)
+        self.site_open = QPushButton("Open website")
+        self.site_open.setObjectName("SmallButton")
+        self.site_open.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(self.settings["tunnel_address"])))
+        site_guide = QPushButton("How to set it up")
+        site_guide.setObjectName("SmallButton")
+        site_guide.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
+            "https://github.com/vishnuvk2k/Clipnest#put-clipnest-web-on-your-own-domain")))
+        self.tunnel.state_changed.connect(self.refresh_site)
+        site_status_row = hbox(self.site_dot, 10, self.site_status, 12, self.site_open)
+        site_status_row.setStretch(2, 1)
+
         self.engine_text = label("Checking…", "Small", wrap=True)
         self.update_btn = QPushButton("  Check for updates")
         self.update_btn.setIcon(theme.icon("refresh", theme.TEXT))
@@ -953,7 +1008,7 @@ class SettingsPage(QWidget):
                           "downloads fail.", "Small", wrap=True),
                     14, hbox(self.browser, None)),
             20,
-            section("Use on your phone",
+            section("Clipnest Web",
                     label("Clipnest Web lets your phone, tablet or another computer use Clipnest "
                           "through its browser: paste a link there, and the download runs here "
                           "on this computer, then you can save the file to your phone. Your phone "
@@ -966,7 +1021,21 @@ class SettingsPage(QWidget):
                            "<b>Private networks</b>.") +
                           " To use it away from home, install the free Tailscale app on this "
                           "computer and your phone; its address appears above.",
-                          "Small", wrap=True)),
+                          "Small", wrap=True),
+                    20, label("Website password", None), 4, self.pw_status, 10,
+                    hbox(self.pw_edit, 8, pw_save, 8, self.pw_remove, None), 6, self.pw_error),
+            20,
+            section("Your website",
+                    label("Put Clipnest Web on your own domain (like getclipnest.com) so it works "
+                          "anywhere, from any browser. It's free with Cloudflare Tunnel: the "
+                          "website comes from Cloudflare, and the downloads still run here on "
+                          "this computer, which must stay on with Clipnest open. Visitors sign "
+                          "in with the website password above.", "Small", wrap=True),
+                    14, label("Website address", None), 6, self.site_address,
+                    12, label("Tunnel token", None), 6, self.site_token,
+                    14, self.site_toggle, 12,
+                    site_status_row,
+                    14, hbox(site_guide, None)),
             20,
             section("General", auto_paste, 10, auto_update),
             20,
@@ -998,8 +1067,88 @@ class SettingsPage(QWidget):
         if on:
             self.web.start()
         else:
+            self.site_toggle.setChecked(False)     # the website needs Clipnest Web
             self.web.stop()
         self.refresh_web()
+
+    # -- website password
+    def save_password(self) -> None:
+        try:
+            self.web.set_password(self.pw_edit.text())
+        except ValueError as exc:
+            self.pw_error.setText(str(exc))
+            self.pw_error.show()
+            return
+        self.pw_edit.clear()
+        self.pw_error.hide()
+        self.refresh_password()
+
+    def remove_password(self) -> None:
+        self.site_toggle.setChecked(False)         # never public without a password
+        self.web.remove_password()
+        self.refresh_password()
+
+    def refresh_password(self) -> None:
+        on = self.web.has_password
+        self.pw_status.setText(
+            "A password is set. Changing it signs everyone out." if on else
+            "Not set. Needed for your own website, so only people you tell can use it.")
+        self.pw_remove.setVisible(on)
+
+    # -- your website
+    def save_address(self) -> None:
+        address = normalize_address(self.site_address.text())
+        if address != self.site_address.text():
+            self.site_address.setText(address)
+        self.settings.set("tunnel_address", address)
+        self.refresh_site()
+
+    def save_token(self) -> None:
+        token = parse_token(self.site_token.text())
+        if token != self.site_token.text():
+            self.site_token.setText(token)
+        if token != self.settings["tunnel_token"]:
+            self.settings.set("tunnel_token", token)
+            if self.site_toggle.isChecked():        # reconnect with the new token
+                self.tunnel.stop()
+                self.tunnel.start()
+
+    def set_site_enabled(self, on: bool) -> None:
+        if on and not self.web.has_password:
+            self.site_toggle.blockSignals(True)
+            self.site_toggle.setChecked(False)
+            self.site_toggle.blockSignals(False)
+            self.pw_error.setText("Set a website password first.")
+            self.pw_error.show()
+            self.pw_edit.setFocus()
+            return
+        self.save_token()
+        self.settings.set("tunnel_enabled", on)
+        if on:
+            if not self.web_toggle.isChecked():
+                self.web_toggle.setChecked(True)
+            self.tunnel.start()
+        else:
+            self.tunnel.stop()
+        self.refresh_site()
+
+    def refresh_site(self) -> None:
+        t = self.tunnel
+        address = self.settings["tunnel_address"]
+        texts = {
+            "off": "Off",
+            "installing": t.message,
+            "connecting": t.message or "Connecting to Cloudflare…",
+            "online": f"Online at {address}" if address else "Online",
+            "error": t.message,
+        }
+        colors = {"online": theme.GREEN, "error": theme.RED, "off": theme.MUTED}
+        self.site_status.setText(texts.get(t.state, t.message))
+        self.site_status.setObjectName("Error" if t.state == "error" else "Small")
+        repolish(self.site_status)
+        self.site_dot.setStyleSheet(
+            f"background: {colors.get(t.state, '#E8B04B')}; border-radius: 5px;")
+        self.site_open.setVisible(t.state == "online" and bool(address))
 
     def refresh_web(self) -> None:
         urls = self.web.urls()
@@ -1071,7 +1220,8 @@ class MainWindow(QMainWindow):
         # Pages
         self.download_page = DownloadPage(self.settings, self.manager)
         self.history_page = HistoryPage(self.history)
-        self.settings_page = SettingsPage(self.settings, self.web)
+        self.tunnel = Tunnel(self.settings, self.web, self)
+        self.settings_page = SettingsPage(self.settings, self.web, self.tunnel)
         self.stack = QStackedWidget()
         self.stack.setObjectName("Content")
         for p in (self.download_page, self.history_page, self.settings_page):
@@ -1089,7 +1239,11 @@ class MainWindow(QMainWindow):
         self.settings_page.update_requested.connect(lambda: self.run_engine(update=True))
         if self.settings["web_enabled"]:
             self.web.start()
+        if self.settings["tunnel_enabled"] and self.web.has_password:
+            self.tunnel.start()
         self.settings_page.refresh_web()
+        self.settings_page.refresh_password()
+        self.settings_page.refresh_site()
 
         self.engine_worker: EngineWorker | None = None
         QTimer.singleShot(0, lambda: self.run_engine(update=self.settings["auto_update"]))
@@ -1154,6 +1308,7 @@ class MainWindow(QMainWindow):
                 e.ignore()
                 return
         self.manager.shutdown()
+        self.tunnel.stop()
         self.web.stop()
         super().closeEvent(e)
 

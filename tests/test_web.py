@@ -31,7 +31,7 @@ def server(tmp_path):
         make_job(2, [str(secret)], origin="app"),          # started on the computer
         make_job(3, [str(song)], state="running"),
     ])
-    settings = FakeSettings(web_key="k" * 24, cookies_browser="")
+    settings = FakeSettings(web_key="k" * 24, cookies_browser="", web_password="")
     srv = web.WebServer(manager, settings, engine_ready=lambda: True)
     assert srv.start()
     yield srv, f"http://127.0.0.1:{srv.port}"
@@ -82,7 +82,7 @@ def test_download_requests_are_checked(server):
 
 
 def test_new_link_replaces_the_key():
-    settings = FakeSettings(web_key="")
+    settings = FakeSettings(web_key="", web_password="")
     srv = web.WebServer(SimpleNamespace(jobs=[]), settings, engine_ready=lambda: True)
     first = srv.key()
     assert len(first) >= 20 and settings["web_key"] == first
@@ -95,3 +95,77 @@ def test_new_link_replaces_the_key():
 def test_address_order():
     addrs = ["100.101.5.9", "8.8.8.8", "192.168.1.20"]
     assert sorted(addrs, key=web._rank) == ["192.168.1.20", "100.101.5.9", "8.8.8.8"]
+
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+
+def test_password_hashing():
+    stored = web.hash_password("open sesame")
+    assert "open sesame" not in stored and stored.startswith("pbkdf2_sha256$")
+    assert web.check_password("open sesame", stored)
+    assert not web.check_password("open sesamE", stored)
+    assert not web.check_password("x", "garbage")
+    assert web.hash_password("same") != web.hash_password("same")      # salted
+
+
+def test_login_guard_locks_out_guessing():
+    now = [1000.0]
+    g = web.LoginGuard(clock=lambda: now[0])
+    for _ in range(4):
+        g.failed("1.2.3.4")
+    assert g.wait_seconds("1.2.3.4") == 0
+    g.failed("1.2.3.4")
+    assert g.wait_seconds("1.2.3.4") > 800          # about 15 minutes
+    assert g.wait_seconds("5.6.7.8") == 0           # other visitors unaffected
+    now[0] += 15 * 60 + 1
+    assert g.wait_seconds("1.2.3.4") == 0
+    for i in range(30):                              # many visitors guessing together
+        g.failed(f"10.0.0.{i}")
+    assert g.wait_seconds("9.9.9.9") > 0
+    g.reset()
+    assert g.wait_seconds("9.9.9.9") == 0
+
+
+def test_password_sign_in_over_http(server, monkeypatch):
+    srv, base = server
+    monkeypatch.setattr(web.time, "sleep", lambda s: None)
+    status, _, body = get(base + "/api/hello")
+    assert json.loads(body) == {"password": False}
+    assert "isn't turned on" in post(base + "/api/login", {"password": "whatever1"})["error"]
+    with pytest.raises(ValueError):
+        srv.set_password("short")
+    old_key = srv.key()
+    srv.set_password("correct horse")
+    assert srv.key() != old_key                      # everyone signed out
+    assert json.loads(get(base + "/api/hello")[2]) == {"password": True}
+    assert post(base + "/api/login", {"password": "wrong one"})["error"] == "That password isn't right."
+    r = post(base + "/api/login", {"password": "correct horse"})
+    assert r["key"] == srv.key()
+    assert get(base + "/api/jobs", key=r["key"])[0] == 200
+    for _ in range(5):
+        post(base + "/api/login", {"password": "nope nope"})
+    assert "Too many wrong tries" in post(base + "/api/login", {"password": "correct horse"})["error"]
+
+
+def test_tunnel_helpers():
+    from clipnest.tunnel import classify, parse_token
+    tok = "eyJhIjoiMTIzNDU2Nzg5MCIsInQiOiJhYmNkZWYiLCJzIjoiWFlaIn0="
+    assert parse_token(tok) == tok
+    assert parse_token(f"  sudo cloudflared service install {tok}\n") == tok
+    assert parse_token(f"cloudflared.exe tunnel run --token {tok}") == tok
+    assert parse_token("") == ""
+    assert classify("2026-11-08T10:00:00Z INF Registered tunnel connection connIndex=0")[0] == "online"
+    assert classify("ERR Provided Tunnel token is not valid.")[0] == "error"
+    assert classify("INF Starting tunnel tunnelID=abc") is None
+
+
+def test_normalize_address():
+    from clipnest.app import normalize_address
+    assert normalize_address(" getclipnest.com/ ") == "https://getclipnest.com"
+    assert normalize_address("https://web.getclipnest.com") == "https://web.getclipnest.com"
+    assert normalize_address("") == ""

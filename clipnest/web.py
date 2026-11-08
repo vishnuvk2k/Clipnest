@@ -12,6 +12,7 @@ anything that touches the download queue is handed to the Qt main thread.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import ipaddress
 import json
@@ -19,6 +20,7 @@ import mimetypes
 import secrets
 import subprocess
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +45,77 @@ mimetypes.add_type("font/woff2", ".woff2")      # unknown to some Windows setups
 mimetypes.add_type("image/svg+xml", ".svg")
 MAX_BODY = 16 * 1024
 CHUNK = 256 * 1024
+
+
+MIN_PASSWORD = 8
+PBKDF2_ROUNDS = 240_000
+
+
+def hash_password(password: str) -> str:
+    """Salted PBKDF2, so the settings file never holds the password itself."""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PBKDF2_ROUNDS)
+    return f"pbkdf2_sha256${PBKDF2_ROUNDS}${salt.hex()}${digest.hex()}"
+
+
+def check_password(password: str, stored: str) -> bool:
+    try:
+        algo, rounds, salt, digest = stored.split("$")
+        if algo != "pbkdf2_sha256":
+            return False
+        test = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), int(rounds))
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(test.hex(), digest)
+
+
+class LoginGuard:
+    """Slows down password guessing from the internet.
+
+    Each visitor gets 5 tries, then waits 15 minutes. If 30 wrong tries arrive
+    from anywhere within 15 minutes (many visitors guessing together), sign-in
+    pauses for everyone for 15 minutes.
+    """
+    PER_CLIENT = 5
+    EVERYONE = 30
+    WINDOW = 15 * 60
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.fails: dict[str, list[float]] = {}
+        self.all_fails: list[float] = []
+
+    def _recent(self, times: list[float]) -> list[float]:
+        now = self.clock()
+        return [t for t in times if now - t < self.WINDOW]
+
+    def wait_seconds(self, client: str) -> int:
+        with self.lock:
+            now = self.clock()
+            mine = self.fails[client] = self._recent(self.fails.get(client, []))
+            self.all_fails = self._recent(self.all_fails)
+            waits = []
+            if len(mine) >= self.PER_CLIENT:
+                waits.append(self.WINDOW - (now - mine[-self.PER_CLIENT]))
+            if len(self.all_fails) >= self.EVERYONE:
+                waits.append(self.WINDOW - (now - self.all_fails[-self.EVERYONE]))
+            return int(max(waits, default=0)) + (1 if waits else 0)
+
+    def failed(self, client: str) -> None:
+        with self.lock:
+            now = self.clock()
+            self.fails.setdefault(client, []).append(now)
+            self.all_fails.append(now)
+
+    def succeeded(self, client: str) -> None:
+        with self.lock:
+            self.fails.pop(client, None)
+
+    def reset(self) -> None:
+        with self.lock:
+            self.fails.clear()
+            self.all_fails.clear()
 
 
 def new_key() -> str:
@@ -148,6 +221,7 @@ class WebServer(QObject):
         self.manager, self.settings = manager, settings
         self.engine_ready = engine_ready          # callable -> bool
         self.bridge = _Bridge(manager, settings)
+        self.guard = LoginGuard()
         self.httpd: ThreadingHTTPServer | None = None
         self.thread: threading.Thread | None = None
         self.error = ""
@@ -171,6 +245,38 @@ class WebServer(QObject):
         """A new secret key: phones with the old link lose access."""
         self.settings.set("web_key", new_key())
         self.state_changed.emit()
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self.settings["web_password"])
+
+    def set_password(self, password: str) -> None:
+        """Sets the website password and signs every device out."""
+        if len(password) < MIN_PASSWORD:
+            raise ValueError(f"Use at least {MIN_PASSWORD} characters.")
+        self.settings.set("web_password", hash_password(password))
+        self.guard.reset()
+        self.new_link()
+
+    def remove_password(self) -> None:
+        self.settings.set("web_password", "")
+        self.new_link()
+
+    def login(self, password: str, client: str) -> dict:
+        if not self.has_password:
+            return {"error": "Sign-in with a password isn't turned on. Use the QR code in "
+                             "Clipnest's Settings on the computer."}
+        wait = self.guard.wait_seconds(client)
+        if wait:
+            minutes = max(1, round(wait / 60))
+            return {"error": f"Too many wrong tries. Try again in {minutes} minute"
+                             f"{'' if minutes == 1 else 's'}."}
+        if check_password(password, self.settings["web_password"]):
+            self.guard.succeeded(client)
+            return {"key": self.key()}
+        self.guard.failed(client)
+        time.sleep(1)                      # slows down guessing a little more
+        return {"error": "That password isn't right."}
 
     def urls(self) -> list[str]:
         if not self.running:
@@ -310,6 +416,14 @@ class _Handler(BaseHTTPRequestHandler):
         self._headers(status, "application/json; charset=utf-8", len(body))
         self.wfile.write(body)
 
+    def _client(self) -> str:
+        """The visitor's address. Behind Cloudflare Tunnel every request comes
+        from this computer, and Cloudflare passes the real one in a header."""
+        addr = self.client_address[0]
+        if addr in ("127.0.0.1", "::1") and self.headers.get("CF-Connecting-IP"):
+            return self.headers["CF-Connecting-IP"].strip()
+        return addr
+
     def _authorized(self, query: dict) -> bool:
         given = self.headers.get("X-Clipnest-Key") or (query.get("key") or [""])[0]
         return key_ok(given, self.app.key())
@@ -341,6 +455,9 @@ class _Handler(BaseHTTPRequestHandler):
                 mimetypes.guess_type(name)[0] or "application/octet-stream"
             self._static(name, ctype)
             return
+        if path == "/api/hello":
+            self._json({"password": self.app.has_password})
+            return
         if not path.startswith("/api/"):
             self._json({"error": "Not found"}, 404)
             return
@@ -359,6 +476,10 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urllib.parse.urlsplit(self.path)
         path, query = parsed.path, urllib.parse.parse_qs(parsed.query)
+        if path == "/api/login":
+            body = self._body() or {}
+            self._json(self.app.login(str(body.get("password", "")), self._client()))
+            return
         if not self._authorized(query):
             self._json({"error": "unauthorized"}, 403)
             return

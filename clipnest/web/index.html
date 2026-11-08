@@ -40,6 +40,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .page { width: min(600px, 100%); margin: 0 auto; padding: 0 16px 40px; }
 header { display: flex; align-items: center; gap: 10px; height: 64px; }
 .brand { display: flex; align-items: center; gap: 10px; font: 700 21px/1 var(--display); letter-spacing: -0.01em; }
+#signout { margin-left: 4px; font-size: 13px; }
 .conn { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .conn.ok .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
@@ -165,6 +166,9 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
 }
 
 .gate { text-align: center; padding: 40px 8px; }
+.login { max-width: 380px; margin: 24px auto 0; display: grid; gap: 12px; text-align: left; }
+.login .go { margin-top: 0; }
+.small-print { font-size: 13.5px; text-align: center; margin: 4px 0 0; }
 .gate img { margin: 0 auto 18px; display: block; }
 .gate ol { text-align: left; color: var(--text-2); display: grid; gap: 8px; padding-left: 22px; margin: 20px auto 0; max-width: 420px; }
 .gate b { color: var(--text); }
@@ -191,15 +195,24 @@ h2 { font: 700 19px/1.2 var(--display); margin: 36px 0 12px; }
   <header>
     <div class="brand"><img src="logo.svg" width="32" height="32" alt="">Clipnest<span class="tag">Web</span></div>
     <div class="conn" id="conn" role="status"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+    <button class="link-btn" id="signout" type="button" hidden>Sign out</button>
   </header>
 
   <div id="offline" class="banner" hidden>Can't reach Clipnest on your computer. Check that it's open and that this phone is on the same Wi-Fi.</div>
 
   <section id="gate" class="gate" hidden>
     <img src="logo.svg" width="64" height="64" alt="">
-    <h1>Open this link from Clipnest</h1>
-    <p class="sub">This page needs the private link from your computer.</p>
-    <ol>
+    <h1 id="gate-title">Open this link from Clipnest</h1>
+    <p class="sub" id="gate-sub">This page needs the private link from your computer.</p>
+    <form id="login" class="login" hidden>
+      <label class="link-box">
+        <input id="password" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
+      </label>
+      <button class="go" type="submit" id="login-btn"><span>Sign in</span></button>
+      <div class="error" id="login-error" role="alert" hidden></div>
+      <p class="sub small-print">Ask the owner of this Clipnest for the password.</p>
+    </form>
+    <ol id="qr-help">
       <li>On your computer, open <b>Clipnest → Settings</b>.</li>
       <li>Under <b>Use on your phone</b>, turn on <b>Clipnest Web</b>.</li>
       <li>Scan the QR code with this phone's camera.</li>
@@ -285,7 +298,7 @@ if (params.get("key")) {
   store.set("clipnest-key", params.get("key"));
   history.replaceState(null, "", location.pathname);
 }
-const KEY = store.get("clipnest-key", "");
+let KEY = store.get("clipnest-key", "");
 const DEVICE = /android|iphone|ipod/i.test(navigator.userAgent) ? "phone"
              : /ipad|tablet/i.test(navigator.userAgent) ? "tablet" : "device";
 
@@ -318,12 +331,52 @@ function setConnection(ok, ready = true) {
                                   : "Not connected";
 }
 
-function showGate() {
+async function showGate() {
+  KEY = ""; store.set("clipnest-key", "");
   $("gate").hidden = false;
   $("app").hidden = true;
+  $("signout").hidden = true;
   $("conn").className = "conn bad";
-  $("conn-text").textContent = "Not connected";
+  $("conn-text").textContent = "Signed out";
+  clearTimeout(jobsTimer);
+  let hello = {};
+  try { hello = await (await fetch("/api/hello")).json(); } catch { /* offline */ }
+  $("login").hidden = !hello.password;
+  if (hello.password) {
+    $("gate-title").textContent = "Sign in to Clipnest";
+    $("gate-sub").textContent = "Enter the password for this Clipnest website.";
+    $("qr-help").hidden = true;
+    $("password").focus();
+  }
 }
+
+$("login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("login-btn").disabled = true;
+  $("login-error").hidden = true;
+  try {
+    const r = await (await fetch("/api/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: $("password").value }),
+    })).json();
+    if (r.key) {
+      KEY = r.key; store.set("clipnest-key", r.key);
+      $("password").value = "";
+      $("gate").hidden = true;
+      boot();
+    } else {
+      $("login-error").textContent = r.error || "Couldn't sign in.";
+      $("login-error").hidden = false;
+    }
+  } catch {
+    $("login-error").textContent = "Can't reach Clipnest. Check your connection and try again.";
+    $("login-error").hidden = false;
+  } finally {
+    $("login-btn").disabled = false;
+  }
+});
+
+$("signout").addEventListener("click", showGate);
 
 // -- format & quality ---------------------------------------------------
 
@@ -568,6 +621,7 @@ async function boot() {
     const s = await api("/api/status");
     setConnection(true, s.ready);
     $("app").hidden = false;
+    $("signout").hidden = false;
     renderFormat();
     refreshJobs();
   } catch (e) {

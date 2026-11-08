@@ -73,6 +73,42 @@ Clipnest must stay open on the computer. Only devices with the private link can 
 **Private networks** when asked. To use it away from home, install the free
 [Tailscale](https://tailscale.com) app on the computer and the phone.
 
+## Put Clipnest Web on your own domain
+
+Make Clipnest Web a real website at your own address, such as `https://getclipnest.com`,
+that works from anywhere. It's free with Cloudflare Tunnel: Cloudflare provides the
+address and HTTPS, and the downloads still run on your computer (with its internet
+connection, so YouTube and Instagram work). Your computer must be on with Clipnest open.
+Visitors sign in with a password you choose.
+
+**1. Get the domain onto Cloudflare (free account)**
+
+- Buy the domain on Cloudflare (Domain Registration), or, if you bought it elsewhere, add it
+  to Cloudflare and change its nameservers at your registrar to the two Cloudflare shows.
+
+**2. Create the tunnel** (menu names in Cloudflare can change a little over time)
+
+1. In the Cloudflare dashboard open **Zero Trust → Networks → Tunnels** and choose
+   **Create a tunnel** → **Cloudflared**. Name it `clipnest`.
+2. On the install page, copy the command shown for any system. **Don't run it**: Clipnest
+   only needs the long token inside it, and finds it for you.
+3. Add a **public hostname**: leave *Subdomain* empty (for `getclipnest.com`) or type one
+   (e.g. `web` for `web.getclipnest.com`), pick your domain, set *Service* to **HTTP** and
+   *URL* to **`localhost:8765`**. Save.
+
+**3. Turn it on in Clipnest** (Settings)
+
+1. Under **Clipnest Web**, tick **Turn on Clipnest Web**, and set a **Website password**
+   (8 or more characters). Share it only with people who should use your Clipnest.
+2. Under **Your website**, type your address, paste what you copied into **Tunnel token**,
+   and tick **Put Clipnest Web on my website**. Clipnest downloads Cloudflare's small
+   `cloudflared` program once, connects, and shows **Online**.
+
+Open your address on any phone or computer, sign in, and paste links. After 5 wrong
+passwords a visitor has to wait 15 minutes. Changing the password signs everyone out.
+When your computer is off or Clipnest is closed, the address shows a Cloudflare error page
+until it's back.
+
 ## If a download fails
 
 - **"Confirm you're not a bot", Instagram, Vimeo, or a private Facebook/X post:** open

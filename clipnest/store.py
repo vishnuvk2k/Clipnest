@@ -59,6 +59,10 @@ DEFAULTS = {
     "auto_update": True,
     "web_enabled": False,          # Clipnest Web: use Clipnest from a phone's browser
     "web_key": "",                 # secret part of the Clipnest Web link
+    "web_password": "",            # salted hash of the website password ("" = none)
+    "tunnel_enabled": False,       # put Clipnest Web on your own domain (Cloudflare Tunnel)
+    "tunnel_token": "",            # from the Cloudflare dashboard
+    "tunnel_address": "",          # e.g. https://getclipnest.com, shown in Settings
 }
 
 

@@ -123,6 +123,8 @@
     bar.innerHTML = "<b>Demo</b> · Try how Clipnest Web works. Nothing is really downloaded. " +
       "<a href=\"../#download\" style=\"color:#fff;font-weight:600;text-decoration:underline\">Get the app</a> to use it for real.";
     document.body.prepend(bar);
+    const so = document.getElementById("signout");
+    if (so) so.remove();      // nothing to sign out of in the demo
   });
   // Show "Demo" instead of "Your computer is online" once the page has set it.
   const relabel = () => {
