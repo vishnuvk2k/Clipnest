@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipnest – free MP3 &amp; MP4 downloader for Windows and Mac</title>
+<meta name="description" content="Clipnest is a free, open-source desktop app that saves YouTube, Instagram, Facebook, X, Vimeo and Pinterest links as 320 kbps MP3 or up to 4K MP4. No ads, no account, no watermark.">
+<meta name="theme-color" content="#16151C">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Clipnest – your music &amp; videos, saved in one click">
+<meta property="og:description" content="Free, open-source MP3 &amp; MP4 downloader for Windows and Mac. No ads, no account, no watermark.">
+<meta property="og:image" content="assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="icon" href="assets/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/outfit.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 10l5-3v10l-5-3z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+  <symbol id="i-windows" viewBox="0 0 24 24"><path d="M3 5.5l7.5-1v7H3zM12.5 4.2L21 3v8.5h-8.5zM3 12.5h7.5v7L3 18.5zM12.5 12.5H21V21l-8.5-1.2z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-apple" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.5-1-2.5-3.9zM14 5.5c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.4z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9V21c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="#" aria-label="Clipnest home">
+      <img src="assets/logo.svg" width="34" height="34" alt="">
+      <span>Clipnest</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#install">Install help</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="top-actions">
+      <a class="icon-link" href="https://github.com/vishnuvk2k/clipnest" aria-label="Clipnest on GitHub"><svg class="i"><use href="#i-github"/></svg></a>
+      <a class="btn btn-small" href="#download">Download</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- Hero -->
+  <section class="hero">
+    <svg class="vinyl" viewBox="0 0 560 560" aria-hidden="true">
+      <circle cx="280" cy="280" r="280" fill="#1D1B27"/>
+      <circle cx="280" cy="280" r="250" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width="2"/>
+      <circle cx="280" cy="280" r="220" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width="2"/>
+      <circle cx="280" cy="280" r="190" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width="2"/>
+      <circle cx="280" cy="280" r="160" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width="2"/>
+      <circle cx="280" cy="280" r="104" fill="#6E4EF7"/>
+      <path d="M280 236v80M248 286l32 32 32-32" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="wrap hero-inner">
+      <p class="eyebrow">Free · Open source · Windows &amp; Mac</p>
+      <h1>Your music &amp; videos,<br><span class="accent">saved in one click.</span></h1>
+      <p class="lead">Paste a link from YouTube, Instagram, Facebook, X, Vimeo or Pinterest and get an MP3 or MP4 in its original quality. No watermark, no ads, no account.</p>
+
+      <div class="cta">
+        <a class="btn btn-big" id="primary-download" href="https://github.com/vishnuvk2k/clipnest/releases/latest">
+          <svg class="i" id="primary-icon"><use href="#i-download"/></svg>
+          <span id="primary-label">Download Clipnest</span>
+        </a>
+        <a class="btn btn-ghost" id="other-downloads" href="#download">Other downloads</a>
+      </div>
+      <p class="cta-note" id="primary-note">Free download for Windows 10/11 and macOS 12 or later.</p>
+
+      <figure class="shot">
+        <img src="assets/app.webp" srcset="assets/app-1280.webp 1280w, assets/app.webp 2560w" sizes="(max-width: 1100px) 94vw, 1040px"
+             width="1280" height="812" alt="The Clipnest window: a YouTube link is pasted, MP3 at 320 kbps is selected, and the Download button is ready.">
+      </figure>
+    </div>
+  </section>
+
+  <!-- Works with -->
+  <section class="sites" aria-labelledby="sites-title">
+    <div class="wrap">
+      <h2 id="sites-title" class="small-title">Works with</h2>
+      <ul class="site-list">
+        <li><span class="dot" style="--c:#FF4E45"></span>YouTube</li>
+        <li><span class="dot" style="--c:#FF4E45"></span>YouTube Music</li>
+        <li><span class="dot" style="--c:#E1306C"></span>Instagram</li>
+        <li><span class="dot" style="--c:#1877F2"></span>Facebook</li>
+        <li><span class="dot" style="--c:#E7E7EA"></span>X</li>
+        <li><span class="dot" style="--c:#1AB7EA"></span>Vimeo</li>
+        <li><span class="dot" style="--c:#E60023"></span>Pinterest</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="section">
+    <div class="wrap">
+      <h2>Everything you need, nothing you don't</h2>
+      <p class="section-lead">One window, one button. Clipnest keeps the original quality and saves straight to your Downloads folder.</p>
+      <div class="grid features">
+        <article class="card">
+          <span class="badge"><svg class="i"><use href="#i-music"/></svg></span>
+          <h3>MP3 up to 320 kbps</h3>
+          <p>Songs and podcasts with cover art, title and artist tags, ready for any music player.</p>
+        </article>
+        <article class="card">
+          <span class="badge"><svg class="i"><use href="#i-video"/></svg></span>
+          <h3>MP4 up to 4K</h3>
+          <p>720p, 1080p, 1440p or 4K with sound included, plus optional subtitles.</p>
+        </article>
+        <article class="card">
+          <span class="badge"><svg class="i"><use href="#i-list"/></svg></span>
+          <h3>Whole playlists</h3>
+          <p>Save a full YouTube playlist in one go, neatly numbered in its own folder.</p>
+        </article>
+        <article class="card">
+          <span class="badge"><svg class="i"><use href="#i-image"/></svg></span>
+          <h3>Pinterest images</h3>
+          <p>Image pins are saved as the original full-size picture, not a blurry preview.</p>
+        </article>
+        <article class="card">
+          <span class="badge"><svg class="i"><use href="#i-shield"/></svg></span>
+          <h3>No ads, no account</h3>
+          <p>No watermark, no tracking, no sign-up. Your files never pass through our servers.</p>
+        </article>
+        <article class="card">
+          <span class="badge"><svg class="i"><use href="#i-refresh"/></svg></span>
+          <h3>Keeps itself working</h3>
+          <p>The download engine updates itself when sites change, so you don't have to.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="section alt">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li class="step">
+          <span class="num">1</span>
+          <svg class="i step-i"><use href="#i-link"/></svg>
+          <h3>Copy a link</h3>
+          <p>Copy the address of a video, Reel, post or playlist in your browser or app.</p>
+        </li>
+        <li class="step">
+          <span class="num">2</span>
+          <svg class="i step-i"><use href="#i-paste"/></svg>
+          <h3>Open Clipnest</h3>
+          <p>The link fills in by itself. You'll see the title, length and best quality.</p>
+        </li>
+        <li class="step">
+          <span class="num">3</span>
+          <svg class="i step-i"><use href="#i-download"/></svg>
+          <h3>Pick MP3 or MP4</h3>
+          <p>Choose the quality and press Download. It lands in your Downloads folder.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Downloads -->
+  <section id="download" class="section">
+    <div class="wrap">
+      <h2>Download Clipnest</h2>
+      <p class="section-lead" id="version-line">Always the latest version, straight from GitHub.</p>
+      <div class="grid downloads">
+        <article class="card dl-card">
+          <div class="dl-head">
+            <svg class="i os"><use href="#i-windows"/></svg>
+            <div><h3>Windows</h3><p class="muted">Windows 10 and 11, 64-bit</p></div>
+          </div>
+          <a class="btn btn-full" data-asset="setup" href="https://github.com/vishnuvk2k/clipnest/releases/latest">
+            <svg class="i"><use href="#i-download"/></svg> Installer <span class="size" data-size="setup"></span>
+          </a>
+          <p class="muted small">Recommended. Adds Clipnest to the Start menu.</p>
+          <a class="btn btn-ghost btn-full" data-asset="portable" href="https://github.com/vishnuvk2k/clipnest/releases/latest">
+            Portable version <span class="size" data-size="portable"></span>
+          </a>
+          <p class="muted small">One file, nothing to install.</p>
+        </article>
+        <article class="card dl-card">
+          <div class="dl-head">
+            <svg class="i os"><use href="#i-apple"/></svg>
+            <div><h3>Mac</h3><p class="muted">macOS 12 Monterey or later</p></div>
+          </div>
+          <a class="btn btn-full" data-asset="mac-arm" href="https://github.com/vishnuvk2k/clipnest/releases/latest">
+            <svg class="i"><use href="#i-download"/></svg> Apple Silicon <span class="size" data-size="mac-arm"></span>
+          </a>
+          <p class="muted small">For M1, M2, M3 and M4 Macs.</p>
+          <a class="btn btn-ghost btn-full" data-asset="mac-intel" href="https://github.com/vishnuvk2k/clipnest/releases/latest">
+            Intel Mac <span class="size" data-size="mac-intel"></span>
+          </a>
+          <p class="muted small">Not sure? Apple menu → About This Mac → <b>Chip</b>.</p>
+        </article>
+      </div>
+      <p class="center muted small">Everything is also on the <a href="https://github.com/vishnuvk2k/clipnest/releases">GitHub releases page</a>, with what's new in each version.</p>
+    </div>
+  </section>
+
+  <!-- Install help -->
+  <section id="install" class="section alt">
+    <div class="wrap">
+      <h2>Opening Clipnest the first time</h2>
+      <p class="section-lead">Clipnest isn't signed with a paid Microsoft or Apple certificate yet, so your computer asks once whether you trust it. After that it opens normally.</p>
+      <div class="grid two">
+        <article class="card">
+          <div class="dl-head"><svg class="i os"><use href="#i-windows"/></svg><h3>Windows</h3></div>
+          <ol class="howto">
+            <li>Open the downloaded <b>Clipnest-Setup</b> file.</li>
+            <li>If you see “Windows protected your PC”, click <b>More info</b>.</li>
+            <li>Click <b>Run anyway</b> and follow the setup.</li>
+          </ol>
+        </article>
+        <article class="card">
+          <div class="dl-head"><svg class="i os"><use href="#i-apple"/></svg><h3>Mac</h3></div>
+          <ol class="howto">
+            <li>Open the <b>.dmg</b> and drag <b>Clipnest</b> into <b>Applications</b>.</li>
+            <li>Open Clipnest. When macOS warns you, click <b>Done</b> (not Move to Trash).</li>
+            <li>Go to <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>.</li>
+          </ol>
+          <p class="muted small">Says “Clipnest is damaged”? Open Terminal, run this once, then open Clipnest again:</p>
+          <div class="code">
+            <code id="xattr">xattr -cr /Applications/Clipnest.app</code>
+            <button class="copy" type="button" data-copy="xattr" aria-label="Copy command"><svg class="i"><use href="#i-copy"/></svg><span>Copy</span></button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="section">
+    <div class="wrap narrow">
+      <h2>Questions</h2>
+      <details>
+        <summary>Is Clipnest really free?</summary>
+        <p>Yes. No ads, no trial, no premium version. It's open source under the MIT license, so anyone can read the code on GitHub.</p>
+      </details>
+      <details>
+        <summary>Is it safe?</summary>
+        <p>All the code is public on GitHub, and every download is built automatically by GitHub from that code. The warning when you first open it only means the app isn't signed with a paid certificate yet.</p>
+      </details>
+      <details>
+        <summary>Why does it ask me to log in for some links?</summary>
+        <p>Instagram, Vimeo, private Facebook or X posts, and sometimes YouTube only show videos to logged-in people. In Clipnest open <b>Settings → Logins</b> and choose the browser where you're logged in. Firefox works most reliably on Windows.</p>
+      </details>
+      <details>
+        <summary>Can it download from Spotify?</summary>
+        <p>No. Spotify protects its music with DRM (copy protection), and Clipnest doesn't break copy protection.</p>
+      </details>
+      <details>
+        <summary>Where are my files saved?</summary>
+        <p>In your <b>Downloads</b> folder. You can pick another folder in Settings. Clipnest never replaces a file you already have; a second copy is saved as “Name (2)”.</p>
+      </details>
+      <details>
+        <summary>Is there a phone version?</summary>
+        <p>Not yet. Clipnest is for Windows and Mac. On Linux you can run it from the source code.</p>
+      </details>
+      <details>
+        <summary>What am I allowed to download?</summary>
+        <p>Clipnest is a tool. Download only content you own, that's licensed for reuse (for example Creative Commons), or that you otherwise have the right to save. Respect creators' copyright and each site's terms.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- Closing CTA -->
+  <section class="section closing">
+    <div class="wrap center">
+      <img src="assets/logo.svg" width="72" height="72" alt="">
+      <h2>Ready when you are</h2>
+      <p class="section-lead">Free forever. Takes a minute to set up.</p>
+      <a class="btn btn-big" href="#download"><svg class="i"><use href="#i-download"/></svg> Get Clipnest</a>
+      <p class="muted small">Like it? <a href="https://github.com/vishnuvk2k/clipnest">Star it on GitHub</a> or <a href="https://github.com/vishnuvk2k/clipnest/issues">report a problem</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <div>
+      <a class="brand" href="#"><img src="assets/logo.svg" width="28" height="28" alt=""><span>Clipnest</span></a>
+      <p class="muted small">Made by <b>Vishnu VK</b>, built with <a href="https://claude.com/claude-code">Claude Code</a>.</p>
+    </div>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/vishnuvk2k/clipnest">GitHub</a>
+      <a href="https://github.com/vishnuvk2k/clipnest/releases">Releases</a>
+      <a href="https://github.com/vishnuvk2k/clipnest/issues">Report a problem</a>
+      <a href="https://github.com/vishnuvk2k/clipnest/blob/main/LICENSE">MIT License</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="disclaimer">Clipnest isn't affiliated with YouTube, Google, Instagram, Facebook, Meta, X, Vimeo or Pinterest. Download only content you have the right to save. © 2026 Vishnu VK.</p>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>
