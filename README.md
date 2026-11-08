@@ -73,7 +73,16 @@ Clipnest must stay open on the computer. Only devices with the private link can 
 **Private networks** when asked. To use it away from home, install the free
 [Tailscale](https://tailscale.com) app on the computer and the phone.
 
-## Put Clipnest Web on your own domain
+## Put Clipnest Web on the internet
+
+**Quickest, free, no account:** in Settings, turn on **Clipnest Web**, set a **Website
+password**, and tick **Put Clipnest Web on the internet** under **Your website**. Clipnest
+gets a free random address from Cloudflare (like `https://bright-lake-tiger.trycloudflare.com`)
+and shows it with a QR code. Open it on any phone or computer, anywhere, and sign in with
+your password. The address changes each time Clipnest starts; for one that stays the same,
+use your own domain (below). Your computer must stay on with Clipnest open.
+
+### Put Clipnest Web on your own domain
 
 Make Clipnest Web a real website at your own address, such as `https://getclipnest.com`,
 that works from anywhere. It's free with Cloudflare Tunnel: Cloudflare provides the
@@ -100,8 +109,8 @@ Visitors sign in with a password you choose.
 
 1. Under **Clipnest Web**, tick **Turn on Clipnest Web**, and set a **Website password**
    (8 or more characters). Share it only with people who should use your Clipnest.
-2. Under **Your website**, type your address, paste what you copied into **Tunnel token**,
-   and tick **Put Clipnest Web on my website**. Clipnest downloads Cloudflare's small
+2. Under **Your website**, type your domain, paste what you copied into **Tunnel token**,
+   and tick **Put Clipnest Web on the internet**. Clipnest downloads Cloudflare's small
    `cloudflared` program once, connects, and shows **Online**.
 
 Open your address on any phone or computer, sign in, and paste links. After 5 wrong

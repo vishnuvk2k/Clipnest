@@ -955,10 +955,10 @@ class SettingsPage(QWidget):
         self.site_address.editingFinished.connect(self.save_address)
         self.site_token = QLineEdit(settings["tunnel_token"])
         self.site_token.setEchoMode(QLineEdit.Password)
-        self.site_token.setPlaceholderText("Paste the tunnel token from Cloudflare")
+        self.site_token.setPlaceholderText("Optional: paste the tunnel token from Cloudflare")
         self.site_token.setAccessibleName("Cloudflare tunnel token")
         self.site_token.editingFinished.connect(self.save_token)
-        self.site_toggle = QCheckBox("Put Clipnest Web on my website")
+        self.site_toggle = QCheckBox("Put Clipnest Web on the internet")
         self.site_toggle.setChecked(settings["tunnel_enabled"])
         self.site_toggle.toggled.connect(self.set_site_enabled)
         self.site_dot = QLabel()
@@ -966,14 +966,32 @@ class SettingsPage(QWidget):
         self.site_status = label("", "Small", wrap=True)
         self.site_open = QPushButton("Open website")
         self.site_open.setObjectName("SmallButton")
-        self.site_open.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl(self.settings["tunnel_address"])))
+        self.site_open.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(self.tunnel.address)))
+        site_copy = QPushButton("Copy address")
+        site_copy.setObjectName("SmallButton")
+        site_copy.clicked.connect(lambda: QGuiApplication.clipboard().setText(self.tunnel.address))
+        self.site_qr = QLabel()
+        self.site_qr.setFixedSize(150, 150)
+        self.site_qr.setAlignment(Qt.AlignCenter)
+        self.site_qr.setStyleSheet("background: #FFFFFF; border-radius: 12px;")
+        self.site_qr.setAccessibleName("QR code with your website address")
+        self.site_url = label("", None, wrap=True)
+        self.site_url.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.site_url.setStyleSheet("font-size: 15px; font-weight: 600;")
+        self.site_note = label("", "Small", wrap=True)
+        self.site_box = QWidget()
+        site_row = hbox(self.site_qr, 20, vbox(
+            label("Your website is online. Open it on any phone or computer, anywhere:", "Small",
+                  wrap=True), 8, self.site_url, 6, self.site_note, 12,
+            hbox(site_copy, 8, self.site_open, None), None))
+        site_row.setStretch(2, 1)
+        self.site_box.setLayout(site_row)
         site_guide = QPushButton("How to set it up")
         site_guide.setObjectName("SmallButton")
         site_guide.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
-            "https://github.com/vishnuvk2k/Clipnest#put-clipnest-web-on-your-own-domain")))
+            "https://github.com/vishnuvk2k/Clipnest#put-clipnest-web-on-the-internet")))
         self.tunnel.state_changed.connect(self.refresh_site)
-        site_status_row = hbox(self.site_dot, 10, self.site_status, 12, self.site_open)
+        site_status_row = hbox(self.site_dot, 10, self.site_status)
         site_status_row.setStretch(2, 1)
 
         self.engine_text = label("Checking…", "Small", wrap=True)
@@ -1018,15 +1036,18 @@ class SettingsPage(QWidget):
                     hbox(self.pw_edit, 8, pw_save, 8, self.pw_remove, None), 6, self.pw_error),
             20,
             section("Your website",
-                    label("Put Clipnest Web on your own domain (like getclipnest.com) so it works "
-                          "anywhere, from any browser. It's free with Cloudflare Tunnel: the "
-                          "website comes from Cloudflare, and the downloads still run here on "
-                          "this computer, which must stay on with Clipnest open. Visitors sign "
-                          "in with the website password above.", "Small", wrap=True),
-                    14, label("Website address", None), 6, self.site_address,
-                    12, label("Tunnel token", None), 6, self.site_token,
+                    label("Make Clipnest Web a real website that works anywhere, from any "
+                          "browser, free with Cloudflare. Leave the fields below empty to get a "
+                          "free random address (it changes each time Clipnest starts), or fill "
+                          "them in to use your own domain, like getclipnest.com. The downloads "
+                          "still run here on this computer, which must stay on with Clipnest "
+                          "open. Visitors sign in with the website password above.",
+                          "Small", wrap=True),
                     14, self.site_toggle, 12,
-                    site_status_row,
+                    site_status_row, 14, self.site_box,
+                    18, label("Your own domain (optional)", None), 6, self.site_address,
+                    12, label("Tunnel token (optional, for your own domain)", None), 6,
+                    self.site_token,
                     14, hbox(site_guide, None)),
             20,
             section("General", auto_paste, 10, auto_update),
@@ -1126,7 +1147,7 @@ class SettingsPage(QWidget):
 
     def refresh_site(self) -> None:
         t = self.tunnel
-        address = self.settings["tunnel_address"]
+        address = t.address
         texts = {
             "off": "Off",
             "installing": t.message,
@@ -1140,7 +1161,15 @@ class SettingsPage(QWidget):
         repolish(self.site_status)
         self.site_dot.setStyleSheet(
             f"background: {colors.get(t.state, '#E8B04B')}; border-radius: 5px;")
-        self.site_open.setVisible(t.state == "online" and bool(address))
+        online = t.state == "online" and bool(address)
+        self.site_box.setVisible(online)
+        if online:
+            self.site_url.setText(address)
+            self.site_note.setText(
+                "This free address changes each time Clipnest starts. Use your own domain "
+                "for one that stays the same." if t.quick else "")
+            self.site_note.setVisible(t.quick)
+            self.site_qr.setPixmap(qr_pixmap(address, 134, self.devicePixelRatioF()))
 
     def refresh_web(self) -> None:
         urls = self.web.urls()

@@ -9,11 +9,22 @@ and HTTPS comes from Cloudflare.
 
 from __future__ import annotations
 
+import re
+
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QThread, QTimer, Signal
 
 from . import engine
 
 RETRY_SECONDS = 30
+# Without a token Clipnest asks Cloudflare for a free "quick tunnel": a random
+# https://<words>.trycloudflare.com address, no account needed. It changes
+# every time the tunnel starts.
+QUICK_URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+
+
+def find_quick_url(line: str) -> str:
+    m = QUICK_URL_RE.search(line)
+    return m.group(0) if m and "api.trycloudflare.com" not in m.group(0) else ""
 
 
 def normalize_address(text: str) -> str:
@@ -75,6 +86,7 @@ class Tunnel(QObject):
         self.installer: _Installer | None = None
         self._buffer = ""
         self._wanted = False
+        self.quick_url = ""
         self.retry = QTimer(self, singleShot=True, interval=RETRY_SECONDS * 1000)
         self.retry.timeout.connect(self._launch)
 
@@ -83,12 +95,17 @@ class Tunnel(QObject):
             self.state, self.message = state, message
             self.state_changed.emit()
 
+    @property
+    def quick(self) -> bool:
+        return not self.settings["tunnel_token"]
+
+    @property
+    def address(self) -> str:
+        """The website's address: the free random one, or your own domain."""
+        return self.quick_url if self.quick else self.settings["tunnel_address"]
+
     def start(self) -> None:
         self._wanted = True
-        token = self.settings["tunnel_token"]
-        if not token:
-            self._set("error", "Paste the tunnel token from Cloudflare first.")
-            return
         if not self.web.running and not self.web.start():
             self._set("error", self.web.error or "Couldn't start Clipnest Web.")
             return
@@ -119,22 +136,31 @@ class Tunnel(QObject):
         proc = QProcess(self)
         proc.setProcessChannelMode(QProcess.MergedChannels)
         env = QProcessEnvironment.systemEnvironment()
-        # The token goes in the environment, not on the command line, so it
-        # doesn't show up in process lists.
-        env.insert("TUNNEL_TOKEN", self.settings["tunnel_token"])
+        env.remove("TUNNEL_TOKEN")
+        if self.quick:
+            args = ["tunnel", "--no-autoupdate", "--url", f"http://localhost:{self.web.port}"]
+        else:
+            # The token goes in the environment, not on the command line, so it
+            # doesn't show up in process lists.
+            env.insert("TUNNEL_TOKEN", self.settings["tunnel_token"])
+            args = ["tunnel", "--no-autoupdate", "run"]
         proc.setProcessEnvironment(env)
         proc.readyReadStandardOutput.connect(lambda: self._read(proc))
         proc.finished.connect(lambda code, _s: self._finished(proc, code))
         proc.errorOccurred.connect(lambda err: err == QProcess.FailedToStart and self._finished(proc, -1))
         self.proc = proc
         self._buffer = ""
+        self.quick_url = ""
         self._set("connecting", "Connecting to Cloudflare…")
-        proc.start(str(exe), ["tunnel", "--no-autoupdate", "run"])
+        proc.start(str(exe), args)
 
     def _read(self, proc: QProcess) -> None:
         self._buffer += bytes(proc.readAllStandardOutput()).decode("utf-8", "replace")
         *lines, self._buffer = self._buffer.split("\n")
         for line in lines:
+            if self.quick and not self.quick_url and (url := find_quick_url(line)):
+                self.quick_url = url
+                self.state_changed.emit()
             result = classify(line)
             if result:
                 self._set(*result)
@@ -160,4 +186,5 @@ class Tunnel(QObject):
             proc.kill()
             proc.waitForFinished(3000)
             proc.deleteLater()
+        self.quick_url = ""
         self._set("off")

@@ -169,3 +169,12 @@ def test_normalize_address():
     assert normalize_address(" getclipnest.com/ ") == "https://getclipnest.com"
     assert normalize_address("https://web.getclipnest.com") == "https://web.getclipnest.com"
     assert normalize_address("") == ""
+
+
+def test_quick_tunnel_address():
+    from clipnest.tunnel import find_quick_url
+    line = ("2026-11-08T12:00:00Z INF |  https://bright-lake-tiger-crane.trycloudflare.com"
+            "                                    |")
+    assert find_quick_url(line) == "https://bright-lake-tiger-crane.trycloudflare.com"
+    assert find_quick_url("INF Requesting new quick Tunnel on https://api.trycloudflare.com...") == ""
+    assert find_quick_url("INF Starting tunnel") == ""
