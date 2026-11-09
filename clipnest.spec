@@ -30,9 +30,8 @@ EXCLUDES = [
 a = Analysis(
     ["Clipnest.py"],
     pathex=["."],
-    datas=[("assets/clipnest.svg", "assets"), ("assets/clipnest.ico", "assets"),
-           ("clipnest/web", "clipnest/web")],     # the Clipnest Web page
-    hiddenimports=["PySide6.QtSvg", "segno"],
+    datas=[("assets/clipnest.svg", "assets"), ("assets/clipnest.ico", "assets")],
+    hiddenimports=["PySide6.QtSvg"],
     excludes=EXCLUDES,
     noarchive=False,
 )

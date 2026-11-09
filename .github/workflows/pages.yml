@@ -1,12 +1,12 @@
 name: Website
 
-# Publishes the home page (site/) and the Clipnest Web demo (site/demo/) to
-# GitHub Pages. One-time setup: Settings → Pages → Source: GitHub Actions.
+# Publishes the download page (site/) to GitHub Pages.
+# One-time setup: Settings → Pages → Source: GitHub Actions.
 
 on:
   push:
     branches: [main]
-    paths: ["site/**", "clipnest/web/**", "tools/build_site.py", ".github/workflows/pages.yml"]
+    paths: ["site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,14 +26,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Put the website together
-        run: python tools/build_site.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4

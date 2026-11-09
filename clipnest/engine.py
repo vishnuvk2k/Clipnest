@@ -15,7 +15,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -39,10 +38,6 @@ FFMPEG_MAC_INDEX = "https://ffmpeg.martin-riedl.de/"
 FFMPEG_MAC_BASE = "https://ffmpeg.martin-riedl.de"
 # yt-dlp needs a JavaScript runtime to read YouTube pages fully.
 DENO_URL = "https://github.com/denoland/deno/releases/latest/download/deno-{target}.zip"
-
-# Cloudflare's tunnel program, for putting Clipnest Web on your own domain.
-# Downloaded only when the website feature is turned on.
-CLOUDFLARED_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/{name}"
 
 # Keeps a console window from flashing up for every child process on Windows.
 NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
@@ -106,39 +101,14 @@ def deno_path() -> Path | None:
     return Path(found) if found else None
 
 
-def cloudflared_path() -> Path | None:
-    own = engine_dir() / _exe("cloudflared")
-    if own.exists():
-        return own
-    found = shutil.which("cloudflared")
-    return Path(found) if found else None
-
-
-def cloudflared_asset() -> str:
-    if IS_WINDOWS:
-        return "cloudflared-windows-amd64.exe"      # also runs on Windows on ARM
-    if IS_MAC:
-        return f"cloudflared-darwin-{'arm64' if _is_arm() else 'amd64'}.tgz"
-    return f"cloudflared-linux-{'arm64' if _is_arm() else 'amd64'}"
-
-
-def install_cloudflared(progress: ProgressFn) -> Path:
-    name = cloudflared_asset()
-    data = _download(CLOUDFLARED_URL.format(name=name), "Downloading Cloudflare Tunnel", progress)
-    if name.endswith(".tgz"):
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-            member = next((m for m in tf.getmembers()
-                           if m.isfile() and m.name.rsplit("/", 1)[-1] == "cloudflared"), None)
-            if member is None:
-                raise RuntimeError("The Cloudflare Tunnel download looks broken. Try again.")
-            data = tf.extractfile(member).read()
-    target = engine_dir() / _exe("cloudflared")
-    tmp = target.with_suffix(".part")
-    tmp.write_bytes(data)
-    tmp.replace(target)
-    if not IS_WINDOWS:
-        target.chmod(target.stat().st_mode | stat.S_IEXEC)
-    return target
+def remove_leftovers() -> None:
+    """Deletes programs older versions downloaded that Clipnest no longer uses
+    (Clipnest 1.3's Cloudflare Tunnel, about 50 MB)."""
+    for name in ("cloudflared",):
+        try:
+            (engine_dir() / _exe(name)).unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def is_own_ytdlp(path: Path | None) -> bool:

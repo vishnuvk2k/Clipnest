@@ -57,12 +57,6 @@ DEFAULTS = {
     "cookies_browser": "",
     "auto_paste": True,
     "auto_update": True,
-    "web_enabled": False,          # Clipnest Web: use Clipnest from a phone's browser
-    "web_key": "",                 # secret part of the Clipnest Web link
-    "web_password": "",            # salted hash of the website password ("" = none)
-    "tunnel_enabled": False,       # put Clipnest Web on your own domain (Cloudflare Tunnel)
-    "tunnel_token": "",            # from the Cloudflare dashboard
-    "tunnel_address": "",          # e.g. https://getclipnest.com, shown in Settings
 }
 
 
@@ -87,10 +81,15 @@ class Settings:
     def __init__(self):
         self._file = JsonFile("settings.json", {})
         loaded = self._file.load()
-        self.values = {**DEFAULTS, **(loaded if isinstance(loaded, dict) else {})}
+        loaded = loaded if isinstance(loaded, dict) else {}
+        self.values = {**DEFAULTS, **{k: v for k, v in loaded.items() if k in DEFAULTS}}
         for key in ("mp3_dir", "mp4_dir"):
             if self.values[key] in _OLD_DEFAULTS:
                 self.values[key] = DEFAULTS[key]
+        if set(loaded) - set(DEFAULTS):
+            # Settings of removed features (e.g. 1.3's web password and tunnel
+            # token) are dropped from the file, not kept around.
+            self._file.save(self.values)
 
     def __getitem__(self, key):
         return self.values[key]

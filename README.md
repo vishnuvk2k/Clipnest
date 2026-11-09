@@ -1,163 +1,82 @@
 <p align="center"><img src="assets/clipnest.png" width="112" alt="Clipnest logo"></p>
 
 <h1 align="center">Clipnest</h1>
-<p align="center"><em>Say it: CLIP-nest</em><br>A free, open-source desktop app to save media from YouTube, Instagram, Facebook, X, Vimeo and Pinterest as MP3 or MP4.</p>
+<p align="center"><em>Say it: CLIP-nest</em><br>A free, open-source desktop app for Windows and Mac that saves YouTube, Instagram, Facebook, X, Vimeo and Pinterest media as MP3 or MP4.</p>
 
-<p align="center"><a href="https://github.com/vishnuvk2k/clipnest/releases/latest">Download for Windows and Mac</a> · <a href="LICENSE">MIT License</a> · <a href="https://github.com/vishnuvk2k/clipnest/issues">Report a problem</a></p>
+<p align="center"><a href="https://github.com/vishnuvk2k/Clipnest/releases/latest"><b>Download for Windows and Mac</b></a> · <a href="LICENSE">MIT License</a> · <a href="https://github.com/vishnuvk2k/Clipnest/issues">Report a problem</a></p>
 
 ## Features
 
 - **MP3 audio** at 320, 256, 192 or 128 kbps, with cover art and title/artist tags
-- **MP4 video** at 4K, 1440p, 1080p or 720p, with sound, optional subtitles
+- **MP4 video** at 4K, 1440p, 1080p or 720p, with sound and optional subtitles
 - **YouTube** videos, Shorts, music and whole playlists
-- **Instagram** Reels and video posts, and Reel audio as MP3 (Instagram's audio pages
-  can't be downloaded directly: use a Reel that uses the sound)
+- **Instagram** Reels and video posts, and Reel audio as MP3
 - **Facebook** videos and Reels, and **X** (Twitter) posts with video
-- **Vimeo** videos (Vimeo only allows this when you're logged in: see below)
+- **Vimeo** videos
 - **Pinterest** video pins, and image pins saved as the original full-size picture
-- A new download never replaces a file you already have: it's saved as "Name (2)" instead
 - Original files, **no watermark**, no ads, no account
-- **Clipnest Web:** use Clipnest from your phone's browser (see below)
+- A new download never replaces a file you already have: a second copy is saved as "Name (2)"
 - Download queue with progress, history, and auto-paste of copied links
-- The download engine (yt-dlp) **updates itself** when Clipnest starts, so it keeps working when sites change
+- The download engine **updates itself** when Clipnest starts, so it keeps working when sites change
 
-## Download
+## Download and install
 
-Everything is on the [Releases](https://github.com/vishnuvk2k/clipnest/releases/latest) page.
+Get the latest version from the [Releases page](https://github.com/vishnuvk2k/Clipnest/releases/latest).
 
 ### Windows 10 and 11
 
 - **`Clipnest-Setup-<version>.exe`** (recommended): a setup wizard that lets you choose the
-  install folder, accept the license, and add Start Menu and desktop shortcuts. Uninstall from
+  install folder and adds Start Menu and desktop shortcuts. Uninstall from
   Windows Settings → Apps.
 - **`Clipnest-Portable.exe`**: one file, no install. Starts a little slower.
 
-> Windows SmartScreen may warn about an unknown publisher because the app isn't code-signed.
-> Click **More info → Run anyway**.
+The app isn't code-signed yet, so the first time Windows may say "Windows protected your PC".
+Click **More info → Run anyway**.
 
 ### Mac (macOS 12 or later)
 
-Pick the disk image for your Mac. Apple menu → **About This Mac** shows the chip:
+Pick the disk image for your Mac (Apple menu → **About This Mac** shows the chip):
 
 - **`Clipnest-<version>-macOS-apple-silicon.dmg`** for M1, M2, M3 and M4 Macs
 - **`Clipnest-<version>-macOS-intel.dmg`** for Intel Macs
 
-Open the `.dmg` and drag **Clipnest** into **Applications**.
+Open the `.dmg` and drag **Clipnest** into **Applications**. The app isn't signed by Apple yet,
+so the first time macOS blocks it:
 
-> The app isn't signed by Apple yet, so the first time macOS says it can't check it for
-> malware. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**
-> next to Clipnest (on older macOS: right-click Clipnest in Applications → **Open**). After
-> that it opens normally.
+1. Open Clipnest. When macOS warns you, click **Done** (not Move to Trash).
+2. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to
+   Clipnest, then confirm with your password.
 
-### First launch
+If macOS says **"Clipnest is damaged"**, open Terminal, run this once, then open Clipnest again:
 
-Downloads are saved to your **Downloads** folder (change it in Settings).
+```bash
+xattr -cr /Applications/Clipnest.app
+```
+
+After the first time it opens normally.
+
+## First launch
+
+Downloads are saved to your **Downloads** folder; you can choose other folders in Settings.
 
 On first launch Clipnest downloads its engine (yt-dlp, FFmpeg and Deno, about 150 MB) into
 `%LOCALAPPDATA%\Clipnest` on Windows or `~/Library/Application Support/Clipnest` on a Mac.
-After that it works offline apart from the downloads themselves.
-
-## Use Clipnest on your phone (Clipnest Web)
-
-Clipnest can show a small web page that your phone, tablet or another computer opens in
-its browser. Paste a link there, the download runs on your computer (with its internet
-connection and browser logins, so YouTube and Instagram work), and you can save the
-finished file straight to your phone. It's also kept in the computer's Downloads folder.
-
-1. On your computer, open **Settings → Use on your phone** and tick **Turn on Clipnest Web**.
-2. Scan the QR code with your phone's camera. Your phone must be on the same Wi-Fi.
-3. Optional: in your phone's browser choose **Add to Home Screen** to get a Clipnest icon.
-
-Clipnest must stay open on the computer. Only devices with the private link can use it;
-**New link** makes a fresh one and locks out the old link. On Windows, allow Clipnest on
-**Private networks** when asked. To use it away from home, install the free
-[Tailscale](https://tailscale.com) app on the computer and the phone.
-
-## Put Clipnest Web on the internet
-
-**Quickest, free, no account:** in Settings, turn on **Clipnest Web**, set a **Website
-password**, and tick **Put Clipnest Web on the internet** under **Your website**. Clipnest
-gets a free random address from Cloudflare (like `https://bright-lake-tiger.trycloudflare.com`)
-and shows it with a QR code. Open it on any phone or computer, anywhere, and sign in with
-your password. The address changes each time Clipnest starts; for one that stays the same,
-use your own domain (below). Your computer must stay on with Clipnest open.
-
-### Put Clipnest Web on your own domain
-
-Make Clipnest Web a real website at your own address, such as `https://getclipnest.com`,
-that works from anywhere. It's free with Cloudflare Tunnel: Cloudflare provides the
-address and HTTPS, and the downloads still run on your computer (with its internet
-connection, so YouTube and Instagram work). Your computer must be on with Clipnest open.
-Visitors sign in with a password you choose.
-
-**1. Get the domain onto Cloudflare (free account)**
-
-- Buy the domain on Cloudflare (Domain Registration), or, if you bought it elsewhere, add it
-  to Cloudflare and change its nameservers at your registrar to the two Cloudflare shows.
-
-**2. Create the tunnel** (menu names in Cloudflare can change a little over time)
-
-1. In the Cloudflare dashboard open **Zero Trust → Networks → Tunnels** and choose
-   **Create a tunnel** → **Cloudflared**. Name it `clipnest`.
-2. On the install page, copy the command shown for any system. **Don't run it**: Clipnest
-   only needs the long token inside it, and finds it for you.
-3. Add a **public hostname**: leave *Subdomain* empty (for `getclipnest.com`) or type one
-   (e.g. `web` for `web.getclipnest.com`), pick your domain, set *Service* to **HTTP** and
-   *URL* to **`localhost:8765`**. Save.
-
-**3. Turn it on in Clipnest** (Settings)
-
-1. Under **Clipnest Web**, tick **Turn on Clipnest Web**, and set a **Website password**
-   (8 or more characters). Share it only with people who should use your Clipnest.
-2. Under **Your website**, type your domain, paste what you copied into **Tunnel token**,
-   and tick **Put Clipnest Web on the internet**. Clipnest downloads Cloudflare's small
-   `cloudflared` program once, connects, and shows **Online**.
-
-Open your address on any phone or computer, sign in, and paste links. After 5 wrong
-passwords a visitor has to wait 15 minutes. Changing the password signs everyone out.
-When your computer is off or Clipnest is closed, the address shows a Cloudflare error page
-until it's back.
-
-## Clipnest Online (the website version)
-
-`server/` is a public website version of Clipnest: anyone opens it, pastes a link and saves
-the file in their browser, with no app and no sign-in. It runs on a cloud server, uses the
-same download engine and page as the app, and is online 24/7.
-
-**Limits:** YouTube and Instagram usually block cloud servers, so the website tells visitors
-to use the free app for those; Facebook, X, Pinterest, Vimeo (public videos) and many others
-work. To keep a small server healthy it runs 1 download at a time, allows 3 per visitor at
-once and 20 per hour, MP4 up to 1080p, files up to 500 MB, no whole playlists, and deletes
-files after 30 minutes. All of these can be changed with `CLIPNEST_*` settings (see
-`server/main.py`).
-
-**Put it online for free on Render**
-
-1. Sign up at [render.com](https://render.com) with your GitHub account.
-2. Choose **New → Blueprint**, pick this repository, and click **Apply**. Render reads
-   `render.yaml`, builds `server/Dockerfile` and gives you an address like
-   `https://clipnest.onrender.com`.
-3. Optional: add your own domain under the service's **Settings → Custom Domains**.
-
-On Render's free plan the website sleeps after about 15 minutes without visitors; the next
-visit wakes it in about a minute. Every push to `main` updates the website.
-
-**Run it yourself:** `docker build -f server/Dockerfile -t clipnest-online .` then
-`docker run -p 8080:8080 clipnest-online`, or without Docker `python -m server.main`
-(needs `yt-dlp` and `ffmpeg`).
+After that it only needs the internet for the downloads themselves.
 
 ## If a download fails
 
-- **"Confirm you're not a bot", Instagram, Vimeo, or a private Facebook/X post:** open
-  **Settings → Logins**, choose the browser where you're logged in to that site, close that
-  browser, and try again. Firefox works most reliably on Windows.
+- **Instagram, Vimeo, private Facebook or X posts, or YouTube's "confirm you're not a bot":**
+  these need you to be logged in. Open **Settings → Logins**, choose the browser where you're
+  logged in to that site, close that browser, and try again. Firefox works most reliably on
+  Windows.
 - **A site changed and downloads stopped working:** **Settings → Check for updates**.
+- **Spotify** can't be downloaded: its music is protected with DRM.
 
 ## Run from source
 
 ```bash
-git clone https://github.com/vishnuvk2k/clipnest.git
-cd clipnest
+git clone https://github.com/vishnuvk2k/Clipnest.git
+cd Clipnest
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
@@ -167,32 +86,38 @@ python Clipnest.py
 Clipnest downloads yt-dlp, FFmpeg and Deno itself on Windows and macOS. On Linux install FFmpeg
 with your package manager (`sudo apt install ffmpeg`); Clipnest downloads the rest.
 
-Run the tests with `python -m pytest`. To build on Windows:
+Run the tests with `python -m pytest`.
+
+## Building
+
+GitHub Actions builds every push: the Windows installer, the portable exe, and both Mac disk
+images (Apple Silicon and Intel). Publishing a release with a tag such as `v1.4.0` attaches
+them to the release automatically.
+
+To build by hand:
 
 ```bat
-pyinstaller clipnest.spec                                  :: app folder in dist\Clipnest\
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\clipnest.iss   :: dist\Clipnest-Setup-<version>.exe
-set CLIPNEST_ONEFILE=1 && pyinstaller clipnest.spec          :: portable dist\Clipnest.exe
+:: Windows
+pyinstaller clipnest.spec                                                :: app folder in dist\Clipnest\
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\clipnest.iss    :: dist\Clipnest-Setup-<version>.exe
+set CLIPNEST_ONEFILE=1 && pyinstaller clipnest.spec                        :: portable dist\Clipnest.exe
 ```
 
-On a Mac, `pyinstaller clipnest.spec` makes `dist/Clipnest.app`.
-
-GitHub Actions builds the Windows installer, the portable exe and both Mac disk images on every
-push, and publishes them as a release when you push a tag such as `v1.3.0`. The icons and
-installer artwork are generated by `tools/make_icon.py` and `tools/make_installer_images.py`.
+On a Mac, `pyinstaller clipnest.spec` makes `dist/Clipnest.app`. The icons and installer artwork
+are generated by `tools/make_icon.py` and `tools/make_installer_images.py`.
 
 ## How it works
 
 | File | What it does |
 |---|---|
 | `clipnest/app.py` | The window: download page, history, settings |
-| `clipnest/downloads.py` | Runs downloads in the background, two at a time, with a queue, then moves finished files into place |
-| `clipnest/jobs.py` | Builds yt-dlp commands for each format and reads its progress |
+| `clipnest/downloads.py` | Runs downloads in the background, two at a time, then moves finished files into place |
+| `clipnest/jobs.py` | Builds yt-dlp commands for each format and site, and reads its progress |
 | `clipnest/engine.py` | Installs and updates yt-dlp, FFmpeg and Deno |
-| `clipnest/web.py`, `clipnest/web/` | Clipnest Web: the phone page and the small server that runs it |
-| `server/` | Clipnest Online: the public website version |
+| `clipnest/browsers.py` | Finds installed browsers for logins |
 | `clipnest/store.py` | Saves settings and history |
 | `clipnest/theme.py` | Colors, styles, icons and the logo |
+| `site/` | The download page at [vishnuvk2k.github.io/Clipnest](https://vishnuvk2k.github.io/Clipnest/) |
 
 ## Responsible use
 
@@ -207,4 +132,5 @@ Made by **Vishnu VK**, built with [Claude Code](https://claude.com/claude-code).
 
 Clipnest is MIT licensed (see [LICENSE](LICENSE)). It uses
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), [FFmpeg](https://ffmpeg.org) (GPL build,
-downloaded separately at runtime) and [Qt for Python](https://www.qt.io/qt-for-python) (LGPL).
+downloaded separately at runtime), [Deno](https://deno.com) (MIT) and
+[Qt for Python](https://www.qt.io/qt-for-python) (LGPL).

@@ -18,24 +18,6 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
 
-  online:
-    # Clipnest Online (the public website): build the server image and check it answers.
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build the server image
-        run: docker build -f server/Dockerfile -t clipnest-online .
-      - name: Check the website starts and answers
-        run: |
-          docker run -d --name online -p 8080:8080 clipnest-online
-          for i in $(seq 1 30); do curl -sf http://localhost:8080/api/health && break; sleep 2; done
-          curl -sf http://localhost:8080/api/hello | grep -q '"public": true'
-          curl -sf http://localhost:8080/ | grep -q "Clipnest"
-          docker exec online yt-dlp --version
-          docker exec online ffmpeg -version | head -1
-          docker logs online
-
   windows:
     needs: test
     runs-on: windows-latest

@@ -147,7 +147,7 @@ QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 
 #LinkBox {{ background: #201F28; border: 1px solid {BORDER_2}; border-radius: 10px; }}
 #LinkBox[focused="true"] {{ border: 1px solid {ACCENT}; }}
-#LinkInput {{ background: transparent; border: 0; padding: 0; min-height: 0; border-radius: 0; font-size: 15px; selection-background-color: {ACCENT}; }}
+#LinkInput {{ background: transparent; border: 0; font-size: 15px; selection-background-color: {ACCENT}; }}
 
 QPushButton {{
     background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 10px;
@@ -197,11 +197,6 @@ QProgressBar::chunk {{ background: {ACCENT}; border-radius: 3px; }}
 QProgressBar[state="done"]::chunk {{ background: {GREEN}; }}
 QProgressBar[state="error"]::chunk {{ background: {RED}; }}
 
-QLineEdit {{
-    background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 8px;
-    padding: 0 12px; min-height: 40px; color: {TEXT}; selection-background-color: {ACCENT};
-}}
-QLineEdit:focus {{ border-color: {ACCENT}; }}
 QComboBox {{
     background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 8px;
     padding: 0 12px; min-height: 40px; min-width: 220px;

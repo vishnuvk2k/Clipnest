@@ -270,3 +270,25 @@ def test_finished_files_never_overwrite(tmp_path):
     assert moved == [str(out / "Origami (2).mp4"), str(out / "Mix" / "01 - a.mp3")]
     assert (out / "Origami.mp4").read_text() == "my video"
     assert unique_path(out / "Origami.mp4") == out / "Origami (3).mp4"
+
+
+def test_settings_of_removed_features_are_dropped(tmp_path, monkeypatch):
+    from clipnest import engine, store
+    monkeypatch.setattr(engine, "data_dir", lambda: tmp_path)
+    (tmp_path / "settings.json").write_text(json.dumps(
+        {"format": "mp4", "web_enabled": True, "web_password": "pbkdf2_sha256$1$aa$bb",
+         "tunnel_token": "secret"}))
+    s = store.Settings()
+    assert s["format"] == "mp4"
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert "web_password" not in saved and "tunnel_token" not in saved and saved["format"] == "mp4"
+
+
+def test_leftover_cloudflared_is_removed(tmp_path, monkeypatch):
+    from clipnest import engine
+    monkeypatch.setattr(engine, "data_dir", lambda: tmp_path)
+    leftover = engine.engine_dir() / engine._exe("cloudflared")
+    leftover.write_bytes(b"x")
+    engine.remove_leftovers()
+    assert not leftover.exists()
+    engine.remove_leftovers()            # nothing there: no error
