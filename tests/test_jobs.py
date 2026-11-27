@@ -227,7 +227,7 @@ def test_image_pin_args_and_info():
     a = build_args("yt-dlp", opts(url="https://www.pinterest.com/pin/1/", fmt="image",
                                   quality="original"))
     assert "--skip-download" in a and "--write-thumbnail" in a and "-x" not in a
-    assert any(x.startswith("after_video:" + FILE_TAG) for x in a)
+    assert a[a.index("-o") + 1].startswith("thumbnail:")      # file found in the work folder
     from clipnest.jobs import info_args
     assert "--ignore-no-formats-error" in info_args("yt-dlp", "https://pin.it/x")
     assert "--ignore-no-formats-error" not in info_args("yt-dlp", "https://youtu.be/x")
@@ -292,3 +292,101 @@ def test_leftover_cloudflared_is_removed(tmp_path, monkeypatch):
     engine.remove_leftovers()
     assert not leftover.exists()
     engine.remove_leftovers()            # nothing there: no error
+
+
+def test_times():
+    from clipnest.jobs import parse_time, format_time
+    assert parse_time("1:30") == 90 and parse_time("1:02:14") == 3734 and parse_time(" 45 ") == 45
+    assert parse_time("0:05") == 5 and parse_time("12:30.5") == 750
+    assert parse_time("1:75") is None and parse_time("abc") is None and parse_time("") is None
+    assert format_time(90) == "1:30" and format_time(3734) == "1:02:14" and format_time(0) == "0:00"
+
+
+def test_check_clip():
+    from clipnest.jobs import check_clip
+    assert check_clip(90, 165, 3734) == ""
+    assert check_clip(90, None, 3734) == ""                       # to the end
+    assert "after the start" in check_clip(165, 90, 3734)
+    assert "after the video ends (1:02:14)" in check_clip(90, 4200, 3734)
+    assert "start is after" in check_clip(4000, None, 3734)
+    assert "1:30" in check_clip(None, 10, 3734)
+    assert check_clip(90, 4200, None) == ""                        # length unknown
+
+
+def test_clip_args_and_names():
+    a = build_args("yt-dlp", opts(fmt="mp4", quality="1080", clip_start=90, clip_end=165))
+    assert a[a.index("--download-sections") + 1] == "*90-165"
+    assert "--force-keyframes-at-cuts" in a
+    assert a[a.index("-o") + 1].endswith("%(title).180B (1-30 to 2-45).%(ext)s")
+    b = build_args("yt-dlp", opts(clip_start=725))                  # MP3, to the end
+    assert b[b.index("--download-sections") + 1] == "*725-inf"
+    assert "--force-keyframes-at-cuts" not in b
+    assert "(12-05 to end)" in b[b.index("-o") + 1]
+    assert "--download-sections" not in build_args("yt-dlp", opts())
+
+
+def test_thumbnail_args():
+    a = build_args("yt-dlp", opts(fmt="thumbnail", quality="original"))
+    assert "--skip-download" in a and "--write-thumbnail" in a
+    assert a[a.index("--convert-thumbnails") + 1] == "jpg"
+    assert a[a.index("-o") + 1] == "thumbnail:%(title).180B (thumbnail).%(ext)s"
+
+
+def test_cookie_problem():
+    from clipnest.jobs import cookie_problem
+    assert cookie_problem("ERROR: Could not copy Chrome cookie database. See https://...")
+    assert cookie_problem("ERROR: Failed to decrypt with DPAPI")
+    assert cookie_problem('ERROR: could not find opera cookies database in "C:\\x"')
+    assert not cookie_problem("ERROR: [youtube] x: Sign in to confirm you're not a bot")
+    assert not cookie_problem("ERROR: Video unavailable")
+
+
+def test_retry_without_login(monkeypatch):
+    from clipnest import downloads
+    m = downloads.DownloadManager()
+    started = []
+    monkeypatch.setattr(m, "_start", lambda job: started.append(job))
+    job = downloads.Job(opts=opts(cookies_browser="chrome", work_dir="/nonexistent"), title="t")
+    job.state = "running"
+    job.log = ["ERROR: Could not copy Chrome cookie database."]
+    m._done(job, 1)
+    assert started == [job] and job.opts.cookies_browser == "" and job._retried
+    assert "without it" in job.status
+    job.log = ["ERROR: Could not copy Chrome cookie database."]
+    job.opts.cookies_browser = "chrome"
+    finished = []
+    m.job_finished.connect(finished.append)
+    m._done(job, 1)                                                 # only one retry
+    assert len(started) == 1 and finished and job.state == "error"
+
+
+def test_apple_convert_helpers():
+    import json
+    from clipnest import convert
+    probe = json.dumps({"streams": [{"codec_type": "video", "codec_name": "vp9", "height": 2160,
+                                     "bit_rate": "18000000"},
+                                    {"codec_type": "audio", "codec_name": "opus"}],
+                        "format": {"duration": "212.5", "bit_rate": "18200000"}})
+    f = convert.parse_probe(probe)
+    assert (f.video_codec, f.height, f.audio_codec, f.duration) == ("vp9", 2160, "opus", 212.5)
+    assert convert.needs_apple_convert(f)
+    assert convert.target_bitrate(f) == int(18_000_000 * 1.15)
+    args = convert.convert_args("ffmpeg", "in.mp4", "out.mp4", f)
+    assert args[args.index("-c:v") + 1] == "hevc_videotoolbox" and args[args.index("-tag:v") + 1] == "hvc1"
+    assert args[args.index("-c:a") + 1] == "aac"                      # Opus becomes AAC
+    h264 = convert.parse_probe(json.dumps({"streams": [{"codec_type": "video", "codec_name": "h264"}]}))
+    assert not convert.needs_apple_convert(h264)
+    no_rate = convert.MediaFacts(video_codec="av1", height=1440)
+    assert convert.target_bitrate(no_rate) == convert.DEFAULT_BITRATE[1440]
+    assert convert.progress_fraction("out_time_us=106250000", 212.5) == 0.5
+    assert convert.progress_fraction("frame=10", 212.5) is None
+
+
+def test_engine_downloads_trust_bundled_certificates(tmp_path, monkeypatch):
+    # The Mac app's Python finds no system certificates; certifi must fill in.
+    from clipnest import engine
+    empty = tmp_path / "none.pem"
+    empty.write_text("")
+    monkeypatch.setenv("SSL_CERT_FILE", str(empty))
+    monkeypatch.setenv("SSL_CERT_DIR", str(tmp_path))
+    assert engine.ssl_context().cert_store_stats()["x509_ca"] > 100

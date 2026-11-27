@@ -57,6 +57,7 @@ DEFAULTS = {
     "cookies_browser": "",
     "auto_paste": True,
     "auto_update": True,
+    "apple_convert": True,         # Mac: re-encode VP9/AV1 so QuickTime and iPhone play it
 }
 
 

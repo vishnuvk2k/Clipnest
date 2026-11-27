@@ -12,8 +12,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 
-from . import engine
-from .jobs import JobOptions, LineEvent, build_args, format_bytes, friendly_error, parse_line
+from . import convert, engine
+from .jobs import (
+    JobOptions, LineEvent, build_args, cookie_problem, format_bytes, friendly_error, parse_line,
+)
 
 MAX_PARALLEL = 2
 STALE_WORK_SECONDS = 12 * 3600
@@ -83,9 +85,12 @@ class Job:
     error: str = ""
     process: QProcess | None = None
     log: list[str] = field(default_factory=list)
+    note: str = ""                 # shown after "Done", e.g. why a file wasn't converted
     _buffer: str = ""
     _part: int = 1
     _last_fraction: float = 0.0
+    _retried: bool = False         # already retried without the browser login
+    _convert: list = field(default_factory=list)   # (file, facts) still to convert for Apple
 
 
 class DownloadManager(QObject):
@@ -231,6 +236,41 @@ class DownloadManager(QObject):
         if job.state == "cancelled":
             self._finish(job, "cancelled", "Cancelled")
             return
+        log = "\n".join(job.log)
+        if code != 0 and job.opts.cookies_browser and not job._retried and cookie_problem(log):
+            # The browser's login couldn't be read (browser open, or Windows locks
+            # it). Most videos don't need a login, so try once without it.
+            job._retried = True
+            job.opts.cookies_browser = ""
+            job.log.clear()
+            job.files.clear()
+            job.fraction, job._part, job._last_fraction = 0.0, 1, 0.0
+            job.status = "Couldn't read the browser login · trying without it…"
+            if job.process is not None:
+                job.process.deleteLater()
+                job.process = None
+            self.job_changed.emit(job)
+            self._start(job)
+            return
+        if code == 0 and job.opts.fmt in ("image", "thumbnail"):
+            # Pictures don't report their final name reliably: take what's in the work folder.
+            work = Path(job.opts.work_dir)
+            job.files = [str(f) for f in sorted(work.rglob("*")) if f.is_file()
+                         and not f.name.endswith((".part", ".ytdl", ".temp"))]
+        if code == 0 and job.opts.apple_convert and job.opts.fmt == "mp4" and job.files:
+            for f in job.files:
+                facts = convert.probe(f)
+                if facts and convert.needs_apple_convert(facts):
+                    job._convert.append((f, facts))
+            if job._convert:
+                if job.process is not None:
+                    job.process.deleteLater()
+                    job.process = None
+                self._next_convert(job)
+                return
+        self._complete(job, code)
+
+    def _complete(self, job: Job, code: int) -> None:
         # Keep whatever finished, even when a later playlist item failed.
         try:
             job.files = move_finished(job.files, Path(job.opts.work_dir), Path(job.opts.out_dir))
@@ -240,11 +280,64 @@ class DownloadManager(QObject):
         if code == 0 and job.files:
             job.fraction = 1.0
             n = len(job.files)
-            self._finish(job, "done", "Done" if n == 1 else f"Done · {n} files")
+            done = "Done" if n == 1 else f"Done · {n} files"
+            self._finish(job, "done", done + (f" · {job.note}" if job.note else ""))
         elif code == 0:
             self._finish(job, "error", "Nothing was downloaded from this link.")
         else:
             self._finish(job, "error", friendly_error("\n".join(job.log)))
+
+    # -- Mac: re-encode VP9/AV1 so QuickTime, Photos and iPhones play it ----------
+
+    def _next_convert(self, job: Job) -> None:
+        if job.state == "cancelled":
+            self._finish(job, "cancelled", "Cancelled")
+            return
+        if not job._convert:
+            self._complete(job, 0)
+            return
+        src, facts = job._convert.pop(0)
+        ffmpeg = engine.ffmpeg_path()
+        if ffmpeg is None:
+            job.note = "QuickTime can't play this 4K format: use IINA or VLC"
+            self._next_convert(job)
+            return
+        dst = str(Path(src).with_name(Path(src).stem + ".apple.mp4"))
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+        job.process = proc
+        job.fraction = 0.0
+        job.status = "Making it play in QuickTime…"
+        self.job_changed.emit(job)
+
+        def read():
+            changed = False
+            for line in bytes(proc.readAllStandardOutput()).decode("utf-8", "replace").splitlines():
+                f = convert.progress_fraction(line.strip(), facts.duration)
+                if f is not None:
+                    job.fraction = f
+                    job.status = f"Making it play in QuickTime · {f * 100:.0f}%"
+                    changed = True
+            if changed:
+                self.job_changed.emit(job)
+
+        def finished(code: int, _status=None):
+            proc.deleteLater()
+            job.process = None
+            out = Path(dst)
+            if job.state != "cancelled" and code == 0 and out.is_file() and out.stat().st_size > 0:
+                os.replace(out, src)
+            else:
+                out.unlink(missing_ok=True)
+                if job.state != "cancelled":
+                    job.note = "QuickTime can't play this 4K format: use IINA or VLC"
+            self._next_convert(job)
+
+        proc.readyReadStandardOutput.connect(read)
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda err: err == QProcess.FailedToStart and finished(-1))
+        args = convert.convert_args(str(ffmpeg), src, dst, facts)
+        proc.start(args[0], args[1:])
 
     def _failed_to_start(self, job: Job, err) -> None:
         if err == QProcess.FailedToStart:

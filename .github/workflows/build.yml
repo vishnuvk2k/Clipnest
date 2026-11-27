@@ -69,6 +69,8 @@ jobs:
           sleep 20
           kill -0 $PID   # fails the build if the app already crashed
           kill $PID
+      - name: Check the app bundles certificates for the engine download
+        run: find dist/Clipnest.app -name cacert.pem | grep -q .
       - name: Make disk image
         run: |
           VERSION=$(python -c "from clipnest import __version__; print(__version__)")

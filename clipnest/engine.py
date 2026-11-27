@@ -12,6 +12,7 @@ import os
 import platform
 import re
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
@@ -130,9 +131,26 @@ def _is_arm() -> bool:
     return platform.machine().lower() in ("arm64", "aarch64")
 
 
+def ssl_context() -> ssl.SSLContext:
+    """Trusted certificates for HTTPS downloads.
+
+    The Python inside the Mac app doesn't find macOS's certificates, so every
+    engine download failed with CERTIFICATE_VERIFY_FAILED. certifi ships a
+    standard certificate list with the app; the computer's own certificates
+    (Windows, Linux, company networks) are kept as well.
+    """
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+        ctx.load_verify_locations(cafile=certifi.where())
+    except (ImportError, OSError, ssl.SSLError):
+        pass
+    return ctx
+
+
 def _download(url: str, label: str, progress: ProgressFn) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "Clipnest"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=60, context=ssl_context()) as resp:
         total = int(resp.headers.get("Content-Length") or 0)
         buf = io.BytesIO()
         while chunk := resp.read(256 * 1024):

@@ -42,6 +42,51 @@ _SOURCES = [
 _URL_RE = re.compile(r"^https?://([^/\s?#]+)", re.IGNORECASE)
 
 
+_TIME_RE = re.compile(r"^\s*(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:\.\d+)?\s*$|^\s*(\d+)\s*$")
+
+
+def parse_time(text: str) -> float | None:
+    """'1:30' -> 90, '1:02:14' -> 3734, '45' -> 45; None if it isn't a time."""
+    m = _TIME_RE.match(text or "")
+    if not m:
+        return None
+    if m.group(4) is not None:
+        return float(m.group(4))
+    h, mi, se = int(m.group(1) or 0), int(m.group(2)), int(m.group(3))
+    if se >= 60 or (m.group(1) and mi >= 60):
+        return None
+    return float(h * 3600 + mi * 60 + se)
+
+
+def format_time(seconds: float) -> str:
+    """90 -> '1:30', 3734 -> '1:02:14'."""
+    s = max(0, int(round(seconds)))
+    h, rem = divmod(s, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def check_clip(start: float | None, end: float | None, duration: float | None) -> str:
+    """'' when the clip makes sense, else a message for the person."""
+    if start is None:
+        return "Type the start like 1:30."
+    if duration and start >= duration:
+        return f"The start is after the video ends ({format_time(duration)})."
+    if end is not None:
+        if end <= start:
+            return "The end must be after the start."
+        if duration and end > duration + 1:
+            return f"The end is after the video ends ({format_time(duration)})."
+    return ""
+
+
+def clip_suffix(start: float, end: float | None) -> str:
+    """' (1-30 to 2-45)': a file-name-safe note of which part was saved."""
+    a = format_time(start).replace(":", "-")
+    b = format_time(end).replace(":", "-") if end is not None else "end"
+    return f" ({a} to {b})"
+
+
 def detect_source(url: str) -> str | None:
     """'YouTube', 'Instagram', 'Link' for any other http(s) URL, or None."""
     m = _URL_RE.match(url.strip())
@@ -94,6 +139,9 @@ class JobOptions:
     cookies_browser: str = ""     # "", "chrome", "edge", "firefox", "brave"
     ffmpeg_dir: str = ""
     deno: str = ""                # path to deno, for YouTube
+    clip_start: float | None = None   # only this part of the video (seconds)
+    clip_end: float | None = None     # None: to the end
+    apple_convert: bool = False   # Mac: re-encode VP9/AV1 MP4s so QuickTime plays them
 
 
 def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
@@ -112,9 +160,14 @@ def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
         "--print", f"video:{TITLE_TAG}\t%(title)s",
         "--print", f"after_move:{FILE_TAG}\t%(filepath)s",
         "-P", opts.work_dir or opts.out_dir,
-        "-o", OUTPUT_TEMPLATE,
+        "-o", output_template(opts),
         "--yes-playlist" if opts.playlist else "--no-playlist",
     ]
+    if opts.clip_start is not None and opts.fmt in ("mp3", "mp4"):
+        end = "inf" if opts.clip_end is None else f"{opts.clip_end:g}"
+        args += ["--download-sections", f"*{opts.clip_start:g}-{end}"]
+        if opts.fmt == "mp4":
+            args += ["--force-keyframes-at-cuts"]      # cut exactly at the chosen times
     source = detect_source(opts.url)
     if source == "Facebook":
         args += ["--replace-in-metadata", "title", FACEBOOK_TITLE_RE, r"\g<1>"]
@@ -154,15 +207,39 @@ def build_args(ytdlp: str, opts: JobOptions) -> list[str]:
             args += ["--write-subs", "--sub-langs", "en.*,en", "--embed-subs"]
     elif opts.fmt == "image":
         # Image pins have no video: save the largest picture (Pinterest's original).
-        args += [
-            "--ignore-no-formats-error", "--skip-download", "--write-thumbnail",
-            "--print", f"after_video:{FILE_TAG}\t%(thumbnails.-1.filepath)s",
-        ]
+        # The finished file is found in the work folder.
+        args += ["--ignore-no-formats-error", "--skip-download", "--write-thumbnail"]
+    elif opts.fmt == "thumbnail":
+        # A video's thumbnail picture at the best size the site offers, as JPG.
+        args += ["--ignore-no-formats-error", "--skip-download", "--write-thumbnail",
+                 "--convert-thumbnails", "jpg"]
     else:
         raise ValueError(f"unknown format {opts.fmt!r}")
 
     args += ["--", opts.url]
     return args
+
+
+def output_template(opts: JobOptions) -> str:
+    """File names: the title, plus which part for clips or '(thumbnail)'."""
+    if opts.fmt == "thumbnail":
+        return "thumbnail:%(title).180B (thumbnail).%(ext)s"
+    if opts.fmt == "image":
+        return "thumbnail:%(title).180B.%(ext)s"
+    if opts.clip_start is not None and opts.fmt in ("mp3", "mp4"):
+        return OUTPUT_TEMPLATE.replace(".%(ext)s", clip_suffix(opts.clip_start, opts.clip_end)
+                                       .replace("%", "%%") + ".%(ext)s")
+    return OUTPUT_TEMPLATE
+
+
+def cookie_problem(log: str) -> bool:
+    """True when yt-dlp couldn't read the browser's login (not a login refusal)."""
+    low = log.lower()
+    return ("cookies database" in low and "could not find" in low) \
+        or ("could not copy" in low and "cookie" in low) \
+        or "dpapi" in low or "app-bound" in low \
+        or ("decrypt" in low and "cookie" in low) \
+        or ("safari" in low and "operation not permitted" in low)
 
 
 def info_args(ytdlp: str, url: str, cookies_browser: str = "", deno: str = "") -> list[str]:

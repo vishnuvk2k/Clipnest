@@ -31,7 +31,7 @@ a = Analysis(
     ["Clipnest.py"],
     pathex=["."],
     datas=[("assets/clipnest.svg", "assets"), ("assets/clipnest.ico", "assets")],
-    hiddenimports=["PySide6.QtSvg"],
+    hiddenimports=["PySide6.QtSvg", "certifi"],
     excludes=EXCLUDES,
     noarchive=False,
 )

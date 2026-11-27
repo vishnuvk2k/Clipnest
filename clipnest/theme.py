@@ -9,25 +9,31 @@ from PySide6.QtCore import QByteArray, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
-ACCENT = "#6E4EF7"        # Clipnest Violet
-ACCENT_HOVER = "#7F63FF"
-ACCENT_SOFT = "#A897FF"
-ACCENT_TINT = "rgba(110, 78, 247, 0.14)"
-BG = "#16151C"
-SIDEBAR = "#1B1A22"
-SURFACE = "#1E1D25"
-SURFACE_2 = "#24232C"
-BORDER = "#2B2935"
-BORDER_2 = "#34323F"
-TEXT = "#F2F1F7"
-TEXT_2 = "#C8C5D3"
-MUTED = "#A09DAE"
-GREEN = "#5FD39A"
+ACCENT = "#7C5CFF"        # Clipnest Violet (Midnight)
+ACCENT_2 = "#A66BFF"      # gradient end
+ACCENT_HOVER = "#8C70FF"
+ACCENT_SOFT = "#A88BFF"
+ACCENT_TINT = "rgba(124, 92, 255, 0.14)"
+GRADIENT = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #7C5CFF, stop:1 #A66BFF)"
+GRADIENT_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #8A6CFF, stop:1 #B27DFF)"
+BG = "#0D0C13"
+PANEL = "#15141D"
+SURFACE = "#1B1A25"
+SURFACE_2 = "#23212F"
+SIDEBAR = PANEL
+BORDER = "#24222F"
+BORDER_2 = "#302E3D"
+TEXT = "#F4F3FA"
+TEXT_2 = "#C9C6D6"
+MUTED = "#8C89A0"
+GREEN = "#3DDC97"
 RED = "#FF7A85"
-RECORD = "#17122B"
+AMBER = "#FFC069"
+RECORD = "#140F26"
 
 LOGO_SVG = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<rect width="64" height="64" rx="18" fill="{ACCENT}"/>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{ACCENT}"/><stop offset="1" stop-color="{ACCENT_2}"/></linearGradient></defs>
+<rect width="64" height="64" rx="18" fill="url(#g)"/>
 <circle cx="32" cy="32" r="21" fill="{RECORD}"/>
 <circle cx="32" cy="32" r="17" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="0.8"/>
 <circle cx="32" cy="32" r="14" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="0.8"/>
@@ -38,7 +44,8 @@ LOGO_SVG = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 
 # Bolder version for 16-32 px, where the grooves would turn to mush.
 LOGO_SMALL_SVG = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<rect width="64" height="64" rx="18" fill="{ACCENT}"/>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{ACCENT}"/><stop offset="1" stop-color="{ACCENT_2}"/></linearGradient></defs>
+<rect width="64" height="64" rx="18" fill="url(#g)"/>
 <circle cx="32" cy="32" r="22" fill="{RECORD}"/>
 <circle cx="32" cy="32" r="12" fill="#ffffff"/>
 <path d="M32 26v11M27 32l5 5 5-5" fill="none" stroke="{ACCENT}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -63,6 +70,8 @@ _ICON_PATHS = {
     "alert": '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>',
     "refresh": '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
     "clock": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "scissors": '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>'
+                '<path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
 }
 
 
@@ -114,92 +123,125 @@ ICON_SIZE = QSize(18, 18)
 STYLESHEET = f"""
 * {{ outline: none; }}
 QWidget {{ color: {TEXT}; font-size: 14px; }}
-QMainWindow, #Content, #Page {{ background: {BG}; }}
-QScrollArea {{ border: 0; background: {BG}; }}
+QMainWindow, #Content {{ background: {BG}; }}
+#Page, #Transparent {{ background: transparent; }}
+QScrollArea {{ border: 0; background: transparent; }}
+QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QScrollBar:vertical {{ background: transparent; width: 10px; margin: 4px 2px; }}
 QScrollBar::handle:vertical {{ background: {BORDER_2}; border-radius: 3px; min-height: 40px; }}
 QScrollBar::handle:vertical:hover {{ background: #4A4757; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 
-#Sidebar {{ background: {SIDEBAR}; border-right: 1px solid #26242F; }}
-#Brand {{ font-size: 22px; font-weight: 700; }}
-#NavButton {{
-    text-align: left; padding: 0 12px; height: 44px; border: 0; border-radius: 8px;
-    background: transparent; color: {TEXT_2};
+/* top bar */
+#TopBar {{ background: rgba(13, 12, 19, 0.85); border-bottom: 1px solid {BORDER}; }}
+#Brand {{ font-size: 20px; font-weight: 700; }}
+#Tabs {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 12px; }}
+#Tab {{
+    background: transparent; border: 0; border-radius: 9px; color: {MUTED};
+    min-height: 34px; padding: 0 14px; font-size: 13px; font-weight: 600; text-align: left;
 }}
-#NavButton:hover {{ background: #24232C; }}
-#NavButton:checked {{ background: #2A2834; color: {TEXT}; font-weight: 600; }}
+#Tab:hover {{ color: {TEXT_2}; }}
+#Tab:checked {{ background: {SURFACE_2}; color: {TEXT}; border: 1px solid {BORDER_2}; }}
 #Badge {{
-    background: {ACCENT}; color: white; border-radius: 11px; font-size: 12px;
-    font-weight: 600; min-width: 22px; max-height: 22px; min-height: 22px; padding: 0 6px;
+    background: {GRADIENT}; color: white; border-radius: 9px; font-size: 11px;
+    font-weight: 700; min-width: 18px; max-height: 18px; min-height: 18px; padding: 0 5px;
 }}
-#EngineBox {{ background: #22212A; border-radius: 8px; }}
-#EngineText {{ color: {MUTED}; font-size: 12px; }}
+#StatusPill {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 15px; }}
+#StatusText {{ color: {MUTED}; font-size: 12px; }}
 
+/* text */
 #H1 {{ font-size: 30px; font-weight: 700; }}
+#Hero {{ font-size: 40px; font-weight: 800; }}
 #H2 {{ font-size: 16px; font-weight: 600; }}
 #Sub {{ color: {MUTED}; font-size: 15px; }}
 #Label {{ color: {TEXT_2}; font-size: 13px; font-weight: 600; }}
 #Muted {{ color: {MUTED}; }}
-#Small {{ color: {MUTED}; font-size: 13px; }}
+#Small {{ color: {MUTED}; font-size: 12.5px; }}
 #Error {{ color: {RED}; font-size: 13px; }}
+#Warn {{ color: {AMBER}; font-size: 12.5px; }}
 
-#LinkBox {{ background: #201F28; border: 1px solid {BORDER_2}; border-radius: 10px; }}
-#LinkBox[focused="true"] {{ border: 1px solid {ACCENT}; }}
-#LinkInput {{ background: transparent; border: 0; font-size: 15px; selection-background-color: {ACCENT}; }}
+/* paste box */
+#PasteBox {{ background: {PANEL}; border: 1px solid #4B3D99; border-radius: 16px; }}
+#PasteBox[focused="true"] {{ border: 1px solid {ACCENT}; }}
+#LinkInput {{ background: transparent; border: 0; padding: 0; min-height: 0; font-size: 15px;
+             selection-background-color: {ACCENT}; }}
 
+/* buttons */
 QPushButton {{
-    background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 10px;
-    padding: 0 18px; min-height: 44px; font-weight: 600;
+    background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 11px;
+    padding: 0 16px; min-height: 42px; font-weight: 600;
 }}
-QPushButton:hover {{ background: #2C2B35; }}
-QPushButton:pressed {{ background: #22212A; }}
-QPushButton:disabled {{ color: #6B6878; }}
-#Primary {{ background: {ACCENT}; border: 0; color: white; font-size: 16px; border-radius: 12px; min-height: 56px; }}
-#Primary:hover {{ background: {ACCENT_HOVER}; }}
-#Primary:disabled {{ background: #3B3460; color: #A9A3C9; }}
-#SmallButton {{ min-height: 36px; padding: 0 12px; font-size: 13px; border-radius: 8px; font-weight: 500; }}
-#IconButton {{ background: transparent; border: 0; min-height: 40px; min-width: 40px; max-width: 40px; padding: 0; border-radius: 8px; }}
-#IconButton:hover {{ background: #2A2834; }}
+QPushButton:hover {{ background: #2B2938; }}
+QPushButton:pressed {{ background: #1F1D29; }}
+QPushButton:disabled {{ color: #5F5C70; }}
+#Grad, #Go {{ background: {GRADIENT}; border: 0; color: white; }}
+#Grad:hover, #Go:hover {{ background: {GRADIENT_HOVER}; }}
+#Go {{ font-size: 16px; border-radius: 14px; min-height: 54px; }}
+#Go:disabled, #Grad:disabled {{ background: #2E2846; color: #8F88AE; }}
+#SmallButton {{ min-height: 34px; padding: 0 12px; font-size: 13px; border-radius: 9px; font-weight: 500; }}
+#LinkButton {{ background: transparent; border: 0; color: {MUTED}; min-height: 26px; padding: 0 2px;
+              font-size: 12.5px; font-weight: 600; }}
+#LinkButton:hover {{ color: {TEXT_2}; }}
+#IconButton {{ background: {SURFACE_2}; border: 0; min-height: 30px; max-height: 30px; min-width: 30px;
+              max-width: 30px; padding: 0; border-radius: 8px; }}
+#IconButton:hover {{ background: #312F3F; }}
+#ThumbSave {{ background: rgba(13, 12, 19, 0.78); border: 1px solid rgba(255,255,255,0.18); color: white;
+             min-height: 28px; max-height: 28px; padding: 0 9px; border-radius: 8px; font-size: 12px; }}
+#ThumbSave:hover {{ background: rgba(124, 92, 255, 0.85); }}
 
-#Card {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
-#Thumb {{ background: #2C2A36; border-radius: 8px; }}
-#Chip {{ background: #2E2C39; color: {TEXT_2}; border-radius: 10px; padding: 3px 10px; font-size: 12px; font-weight: 600; }}
-#Duration {{ background: rgba(0,0,0,0.72); border-radius: 4px; padding: 2px 6px; font-size: 12px; }}
-#MediaTitle {{ font-size: 17px; font-weight: 600; }}
+/* panels */
+#Panel {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 20px; }}
+#Card {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
+#Rail {{ background: rgba(21, 20, 29, 0.6); border-left: 1px solid {BORDER}; }}
+#Thumb {{ background: {SURFACE_2}; border-radius: 12px; }}
+#Chip {{ background: {SURFACE_2}; color: {TEXT_2}; border: 1px solid {BORDER}; border-radius: 10px;
+        padding: 2px 9px; font-size: 11.5px; font-weight: 600; }}
+#ChipRed {{ background: rgba(255,78,69,0.10); color: #FF8A80; border: 1px solid rgba(255,78,69,0.25);
+           border-radius: 10px; padding: 2px 9px; font-size: 11.5px; font-weight: 600; }}
+#SiteChip {{ background: {PANEL}; color: {TEXT_2}; border: 1px solid {BORDER}; border-radius: 14px;
+            padding: 5px 12px; font-size: 12.5px; font-weight: 600; }}
+#Duration {{ background: rgba(0,0,0,0.72); border-radius: 6px; padding: 2px 7px; font-size: 12px; font-weight: 600; }}
+#MediaTitle {{ font-size: 20px; font-weight: 700; }}
+#Kbd {{ background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 6px; padding: 1px 6px;
+       font-size: 11.5px; font-weight: 600; color: {TEXT_2}; }}
 
-#FormatCard {{
-    background: {SURFACE}; border: 2px solid {BORDER}; border-radius: 12px;
-    min-height: 76px; text-align: left; padding: 0 16px;
-}}
-#FormatCard:hover {{ border-color: #3D3A4A; }}
-#FormatCard:checked {{ background: {ACCENT_TINT}; border-color: {ACCENT}; }}
-#FormatIcon {{ background: #2E2C39; border-radius: 10px; }}
-#FormatIcon[on="true"] {{ background: {ACCENT}; }}
-#FormatName {{ font-size: 16px; font-weight: 600; background: transparent; }}
-#FormatDesc {{ font-size: 13px; color: {MUTED}; background: transparent; }}
+/* format choices */
+#Choice {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; text-align: left;
+          min-height: 64px; padding: 0; }}
+#Choice:hover {{ border-color: #3D3A4E; background: {SURFACE}; }}
+#Choice:checked {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(124,92,255,0.18),
+                  stop:1 rgba(124,92,255,0.06)); border: 1px solid rgba(155,123,255,0.75); }}
+#ChoiceIcon {{ background: {SURFACE_2}; border-radius: 10px; }}
+#ChoiceIcon[on="true"] {{ background: {GRADIENT}; }}
+#ChoiceName {{ font-size: 14.5px; font-weight: 600; background: transparent; }}
+#ChoiceDesc {{ font-size: 12px; color: {MUTED}; background: transparent; }}
 
-#Pill {{
-    background: #22212A; border: 1px solid {BORDER_2}; border-radius: 22px;
-    color: {TEXT_2}; padding: 0 18px; min-height: 44px; font-weight: 600;
-}}
+#Pill {{ background: transparent; border: 1px solid {BORDER_2}; border-radius: 15px; color: {TEXT_2};
+        padding: 0 13px; min-height: 30px; max-height: 30px; font-size: 12.5px; font-weight: 600; }}
 #Pill:hover {{ border-color: #4A4757; }}
-#Pill:checked {{ background: {ACCENT}; border-color: {ACCENT}; color: white; }}
+#Pill:checked {{ background: {GRADIENT}; border: 0; color: white; }}
 
-QCheckBox {{ spacing: 10px; }}
-QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 4px; border: 1px solid #4A4757; background: #201F28; }}
-QCheckBox::indicator:hover {{ border-color: {ACCENT_SOFT}; }}
+/* trim */
+#TimeBox {{ background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 8px; padding: 0 8px;
+           min-height: 32px; max-height: 32px; font-weight: 600; font-size: 14px; }}
+#TimeBox:focus {{ border-color: {ACCENT}; }}
+#TimeBox[bad="true"] {{ border-color: {RED}; }}
+
+QCheckBox {{ spacing: 10px; background: transparent; }}
+QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 4px; border: 1px solid #4A4757; background: {SURFACE_2}; }}
 QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; image: url(:/clipnest/check.svg); }}
+#Switch::indicator {{ width: 36px; height: 20px; border: 0; border-radius: 10px; image: url(:/clipnest/switch-off.svg); background: transparent; }}
+#Switch::indicator:checked {{ image: url(:/clipnest/switch-on.svg); background: transparent; }}
 
-QProgressBar {{ background: #2E2C39; border: 0; border-radius: 3px; max-height: 6px; min-height: 6px; }}
-QProgressBar::chunk {{ background: {ACCENT}; border-radius: 3px; }}
-QProgressBar[state="done"]::chunk {{ background: {GREEN}; }}
-QProgressBar[state="error"]::chunk {{ background: {RED}; }}
+QProgressBar {{ background: {SURFACE_2}; border: 0; border-radius: 3px; max-height: 6px; min-height: 6px; }}
+QProgressBar::chunk {{ background: {GRADIENT}; border-radius: 3px; }}
 
+QLineEdit {{ background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 8px; padding: 0 10px;
+            min-height: 34px; selection-background-color: {ACCENT}; }}
 QComboBox {{
-    background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 8px;
-    padding: 0 12px; min-height: 40px; min-width: 220px;
+    background: {SURFACE_2}; border: 1px solid {BORDER_2}; border-radius: 9px;
+    padding: 0 12px; min-height: 40px; min-width: 240px;
 }}
 QComboBox::drop-down {{ border: 0; width: 28px; }}
 QComboBox QAbstractItemView {{

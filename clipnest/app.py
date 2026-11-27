@@ -1,4 +1,4 @@
-"""Clipnest's main window."""
+"""Clipnest's main window (the "Midnight" design)."""
 
 from __future__ import annotations
 
@@ -8,21 +8,27 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import (
-    QEvent, QObject, QProcess, QProcessEnvironment, QSize, Qt, QThread, QTimer, QUrl, Signal,
+    QEvent, QPointF, QProcess, QProcessEnvironment, QRectF, QSize, Qt, QThread, QTimer, QUrl,
+    Signal,
 )
-from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication, QPixmap
+from PySide6.QtGui import (
+    QColor, QDesktopServices, QFont, QGuiApplication, QLinearGradient, QPainter, QPainterPath,
+    QPen, QPixmap, QRadialGradient,
+)
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
-    QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
-    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton,
-    QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
+    QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
+    QMessageBox, QProgressBar, QPushButton, QScrollArea, QSizePolicy, QStackedWidget,
+    QVBoxLayout, QWidget,
 )
 
 from . import __version__, browsers, engine, theme
 from .downloads import DownloadManager, Job
 from .jobs import (
-    MP3_QUALITIES, MP4_QUALITIES, JobOptions, MediaInfo, detect_source, format_duration,
-    info_args, parse_info, unsupported_reason,
+    MP3_QUALITIES, MP4_QUALITIES, JobOptions, MediaInfo, check_clip, detect_source,
+    format_duration, format_time, friendly_error, info_args, parse_info, parse_time,
+    unsupported_reason,
 )
 from .store import History, Settings
 
@@ -32,16 +38,36 @@ QUALITY_LABELS = {
     "mp4": {"2160": ("4K · 2160p", "Best"), "1440": ("1440p", ""),
             "1080": ("1080p", "Full HD"), "720": ("720p", "")},
 }
-FORMAT_ICONS = {"mp3": "music", "mp4": "video", "image": "image"}
+PILL_LABELS = {"mp3": {"320": "320 kbps", "256": "256", "192": "192", "128": "128"},
+               "mp4": {"2160": "4K", "1440": "1440p", "1080": "1080p", "720": "720p"}}
+FORMAT_ICONS = {"mp3": "music", "mp4": "video", "image": "image", "thumbnail": "image"}
+CHROMIUM = {"chrome", "edge", "brave", "opera", "opera_gx", "vivaldi", "chromium"}
+THUMB_W, THUMB_H = 250, 141
 
 
 def format_label(fmt: str, quality: str) -> str:
-    """'MP3 · 320 kbps', 'MP4 · 1080p' or 'Image · original'."""
+    """'MP3 · 320 kbps', 'MP4 · 1080p', 'Thumbnail · JPG' or 'Image · original'."""
     if fmt == "mp3":
         return f"MP3 · {quality} kbps"
     if fmt == "image":
         return "Image · original"
+    if fmt == "thumbnail":
+        return "Thumbnail · JPG"
     return "MP4 · " + QUALITY_LABELS["mp4"].get(quality, (quality,))[0]
+
+
+def short_label(fmt: str, quality: str) -> str:
+    """Compact version for the Downloads panel: 'MP3', 'MP4 4K', 'Thumbnail'."""
+    if fmt == "mp4":
+        return "MP4 " + PILL_LABELS["mp4"].get(quality, quality)
+    return {"mp3": "MP3", "thumbnail": "Thumbnail", "image": "Image"}.get(fmt, fmt.upper())
+
+
+def clip_text(start: float | None, end: float | None) -> str:
+    if start is None:
+        return ""
+    return f"{format_time(start)} – {format_time(end)}" if end is not None else \
+        f"from {format_time(start)}"
 
 
 # -- small helpers ------------------------------------------------------------
@@ -54,10 +80,11 @@ def label(text: str = "", name: str | None = None, wrap: bool = False) -> QLabel
     return lb
 
 
-def icon_label(name: str, color: str = theme.TEXT_2, size: int = 18) -> QLabel:
+def icon_label(name: str, color: str = theme.TEXT_2, size: int = 18, stroke: float = 2.0) -> QLabel:
     lb = QLabel()
-    lb.setPixmap(theme.icon(name, color, size).pixmap(size, size))
+    lb.setPixmap(theme.icon(name, color, size, stroke).pixmap(size, size))
     lb.setFixedSize(size, size)
+    lb.setStyleSheet("background: transparent;")
     return lb
 
 
@@ -93,15 +120,45 @@ def hbox(*widgets, spacing: int = 0, margins=(0, 0, 0, 0)) -> QHBoxLayout:
     return lay
 
 
-def card() -> QFrame:
+def frame(name: str, layout=None) -> QFrame:
     f = QFrame()
-    f.setObjectName("Card")
+    f.setObjectName(name)
+    if layout is not None:
+        f.setLayout(layout)
     return f
 
 
 def repolish(w: QWidget) -> None:
     w.style().unpolish(w)
     w.style().polish(w)
+
+
+def glow(widget: QWidget, color: str = "#7C5CFF", alpha: int = 110, blur: int = 34, dy: int = 10) -> None:
+    effect = QGraphicsDropShadowEffect(widget)
+    c = QColor(color)
+    c.setAlpha(alpha)
+    effect.setColor(c)
+    effect.setBlurRadius(blur)
+    effect.setOffset(0, dy)
+    widget.setGraphicsEffect(effect)
+
+
+def icon_button(name: str, tip: str, size: int = 15) -> QPushButton:
+    b = QPushButton()
+    b.setObjectName("IconButton")
+    b.setIcon(theme.icon(name, theme.TEXT_2, size))
+    b.setIconSize(QSize(size, size))
+    b.setToolTip(tip)
+    b.setAccessibleName(tip)
+    b.setCursor(Qt.PointingHandCursor)
+    return b
+
+
+def switch(text: str) -> QCheckBox:
+    box = QCheckBox(text)
+    box.setObjectName("Switch")
+    box.setCursor(Qt.PointingHandCursor)
+    return box
 
 
 def show_in_folder(path: str) -> None:
@@ -116,6 +173,31 @@ def show_in_folder(path: str) -> None:
 
 def open_file(path: str) -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
+
+def _rounded(px: QPixmap, radius: float) -> QPixmap:
+    out = QPixmap(px.size())
+    out.fill(Qt.transparent)
+    p = QPainter(out)
+    p.setRenderHint(QPainter.Antialiasing)
+    path = QPainterPath()
+    path.addRoundedRect(0, 0, px.width(), px.height(), radius, radius)
+    p.setClipPath(path)
+    p.drawPixmap(0, 0, px)
+    p.end()
+    return out
+
+
+def _height_name(h: int) -> str:
+    if h >= 2160:
+        return "4K"
+    if h >= 1440:
+        return "1440p"
+    return f"{h}p"
+
+
+def folder_name(path: str) -> str:
+    return Path(path).name or path
 
 
 # -- engine setup / update in the background ---------------------------------
@@ -140,50 +222,196 @@ class EngineWorker(QThread):
             self.done.emit(False, str(exc))
 
 
-# -- widgets ------------------------------------------------------------------
+# -- custom-drawn widgets -----------------------------------------------------
 
-class NavButton(QPushButton):
+class GlowBackground(QWidget):
+    """The deep background with a soft violet glow at the top."""
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(theme.BG))
+        w, h = self.width(), self.height()
+        g = QRadialGradient(QPointF(w * 0.36, -40), max(w * 0.55, 420))
+        g.setColorAt(0, QColor(124, 92, 255, 52))
+        g.setColorAt(1, QColor(124, 92, 255, 0))
+        p.fillRect(self.rect(), g)
+        g2 = QRadialGradient(QPointF(w, h), max(w * 0.4, 300))
+        g2.setColorAt(0, QColor(180, 107, 255, 16))
+        g2.setColorAt(1, QColor(180, 107, 255, 0))
+        p.fillRect(self.rect(), g2)
+
+
+class Ring(QWidget):
+    """Round progress for a download, with the format icon inside."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(38, 38)
+        self.fraction = 0.0
+        self.state = "running"
+        self.icon_name = "video"
+
+    def set(self, fraction: float, state: str, icon_name: str) -> None:
+        self.fraction, self.state, self.icon_name = fraction, state, icon_name
+        self.update()
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(3, 3, 32, 32)
+        if self.state in ("done", "error", "cancelled"):
+            color = {"done": QColor(61, 220, 151, 34), "error": QColor(255, 122, 133, 34)}.get(
+                self.state, QColor(theme.SURFACE_2))
+            p.setPen(Qt.NoPen)
+            p.setBrush(color)
+            p.drawEllipse(QRectF(0, 0, 38, 38))
+            name, col = {"done": ("check", theme.GREEN), "error": ("alert", theme.RED)}.get(
+                self.state, ("close", theme.MUTED))
+            p.drawPixmap(10, 10, theme.icon(name, col, 18, 2.5).pixmap(18, 18))
+            return
+        p.setPen(QPen(QColor("#2A2836"), 3))
+        p.drawEllipse(r)
+        if self.fraction > 0:
+            g = QLinearGradient(0, 0, 38, 38)
+            g.setColorAt(0, QColor(theme.ACCENT))
+            g.setColorAt(1, QColor(theme.ACCENT_2))
+            pen = QPen(g, 3)
+            pen.setCapStyle(Qt.RoundCap)
+            p.setPen(pen)
+            p.drawArc(r, 90 * 16, -int(360 * 16 * min(1.0, self.fraction)))
+        p.drawPixmap(11, 11, theme.icon(self.icon_name, theme.TEXT_2, 16).pixmap(16, 16))
+
+
+class Timeline(QWidget):
+    """The whole video as a bar; drag the two handles to choose the part."""
+    range_changed = Signal(float, float)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(40)
+        self.setMaximumHeight(40)
+        self.setCursor(Qt.SizeHorCursor)
+        self.duration = 0.0
+        self.start, self.end = 0.0, 0.0
+        self._drag: str | None = None
+        self.setAccessibleName("Part of the video to download")
+
+    def set_duration(self, d: float) -> None:
+        self.duration = max(0.0, d or 0.0)
+        self.update()
+
+    def set_range(self, start: float, end: float) -> None:
+        self.start, self.end = start, end
+        self.update()
+
+    def _x(self, t: float) -> float:
+        return 0 if not self.duration else t / self.duration * self.width()
+
+    def _t(self, x: float) -> float:
+        return 0 if not self.width() else max(0.0, min(1.0, x / self.width())) * self.duration
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        clip = QPainterPath()
+        clip.addRoundedRect(0, 0, w, h, 9, 9)
+        p.setClipPath(clip)
+        g = QLinearGradient(0, 0, w, 0)
+        for at, c in ((0, "#2E2357"), (0.35, "#5A2E5C"), (0.7, "#7A3F52"), (1, "#30245A")):
+            g.setColorAt(at, QColor(c))
+        p.fillRect(0, 0, w, h, g)
+        p.setPen(QPen(QColor(255, 255, 255, 18), 1))
+        for x in range(0, w, 32):
+            p.drawLine(x, 0, x, h)
+        if not self.duration:
+            return
+        x1, x2 = self._x(self.start), self._x(self.end)
+        p.fillRect(QRectF(0, 0, x1, h), QColor(8, 7, 14, 170))
+        p.fillRect(QRectF(x2, 0, w - x2, h), QColor(8, 7, 14, 170))
+        p.setClipping(False)
+        p.setPen(QPen(QColor("#9B7BFF"), 2))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(QRectF(x1, 1, max(2, x2 - x1), h - 2), 8, 8)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#FFFFFF"))
+        for x in (x1, x2):
+            p.drawRoundedRect(QRectF(x - 4, 7, 8, h - 14), 4, 4)
+
+    def mousePressEvent(self, e):
+        if not self.duration:
+            return
+        x = e.position().x()
+        self._drag = "start" if abs(x - self._x(self.start)) <= abs(x - self._x(self.end)) else "end"
+        self.mouseMoveEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if not self._drag:
+            return
+        t = round(self._t(e.position().x()))
+        if self._drag == "start":
+            self.start = min(t, self.end - 1)
+        else:
+            self.end = max(t, self.start + 1)
+        self.start, self.end = max(0.0, self.start), min(self.duration, self.end)
+        self.update()
+        self.range_changed.emit(self.start, self.end)
+
+    def mouseReleaseEvent(self, e):
+        self._drag = None
+
+
+class TabButton(QPushButton):
     def __init__(self, icon_name: str, text: str):
-        super().__init__()
-        self.setObjectName("NavButton")
+        super().__init__("  " + text)
+        self.setObjectName("Tab")
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setIcon(theme.icon(icon_name, theme.TEXT_2))
-        self.setIconSize(theme.ICON_SIZE)
-        self.setText("  " + text)
+        self.setIcon(theme.icon(icon_name, theme.TEXT_2, 16))
+        self.setIconSize(QSize(16, 16))
         self.badge = label("", "Badge")
         self.badge.setAlignment(Qt.AlignCenter)
         self.badge.hide()
-        lay = hbox(None, self.badge, margins=(0, 0, 12, 0))
-        self.setLayout(lay)
+        self.setLayout(hbox(None, self.badge, margins=(0, 0, 8, 0)))
+        self._text = text
 
     def set_badge(self, n: int) -> None:
         self.badge.setText(str(n))
         self.badge.setVisible(n > 0)
+        # Room for the badge so it never covers the text.
+        self.setText("  " + self._text + ("        " if n > 0 else ""))
 
 
-class FormatCard(QPushButton):
+class ChoiceCard(QPushButton):
     def __init__(self, icon_name: str, name: str, desc: str):
         super().__init__()
-        self.setObjectName("FormatCard")
+        self.setObjectName("Choice")
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setAccessibleName(f"{name}: {desc}")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.icon_box = QLabel()
-        self.icon_box.setObjectName("FormatIcon")
-        self.icon_box.setFixedSize(44, 44)
+        self.icon_box.setObjectName("ChoiceIcon")
+        self.icon_box.setFixedSize(38, 38)
         self.icon_box.setAlignment(Qt.AlignCenter)
-        self.icon_box.setPixmap(theme.icon(icon_name, "#FFFFFF", 22).pixmap(22, 22))
-        text = vbox(label(name, "FormatName"), label(desc, "FormatDesc"), spacing=2)
-        self.setLayout(hbox(self.icon_box, 14, text, None, margins=(16, 14, 16, 14)))
-        for w in (self.icon_box,):
+        self.icon_name = icon_name
+        self.name = label(name, "ChoiceName")
+        self.desc = label(desc, "ChoiceDesc")
+        for w in (self.icon_box, self.name, self.desc):
             w.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setLayout(hbox(self.icon_box, 12, vbox(self.name, 1, self.desc), None,
+                            margins=(13, 12, 13, 12)))
         self.toggled.connect(self._sync)
-        self.setMinimumHeight(76)
+        self._sync(False)
+
+    def set_text(self, name: str, desc: str) -> None:
+        self.name.setText(name)
+        self.desc.setText(desc)
+        self.setAccessibleName(f"{name}: {desc}")
 
     def _sync(self, on: bool) -> None:
         self.icon_box.setProperty("on", "true" if on else "false")
+        self.icon_box.setPixmap(theme.icon(self.icon_name, "#FFFFFF" if on else theme.TEXT_2, 18)
+                                .pixmap(18, 18))
         repolish(self.icon_box)
 
 
@@ -192,78 +420,52 @@ class DownloadRow(QFrame):
         super().__init__()
         self.setObjectName("Card")
         self.job, self.manager = job, manager
-        self.kind_icon = QLabel()
-        self.kind_icon.setFixedSize(40, 40)
-        self.kind_icon.setAlignment(Qt.AlignCenter)
+        self.ring = Ring()
         self.title = label("", None)
-        self.title.setStyleSheet("font-weight: 600;")
-        self.title.setMinimumWidth(80)
+        self.title.setStyleSheet("font-weight: 600; font-size: 13.5px; background: transparent;")
         self.title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.status = label("", "Small")
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 1000)
-        self.bar.setTextVisible(False)
-        self.bar.setAccessibleName("Download progress")
-
-        self.cancel_btn = QPushButton()
-        self.cancel_btn.setObjectName("IconButton")
-        self.cancel_btn.setIcon(theme.icon("close", theme.TEXT_2, 16))
-        self.cancel_btn.setToolTip("Cancel")
-        self.cancel_btn.setAccessibleName("Cancel download")
+        self.status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.cancel_btn = icon_button("close", "Cancel download")
         self.cancel_btn.clicked.connect(lambda: self.manager.cancel(self.job))
-        self.play_btn = QPushButton()
-        self.play_btn.setObjectName("IconButton")
-        self.play_btn.setIcon(theme.icon("play", theme.TEXT_2, 16))
-        self.play_btn.setToolTip("Play")
-        self.play_btn.setAccessibleName("Play file")
-        self.play_btn.clicked.connect(lambda: self.job.files and open_file(self.job.files[-1]))
-        self.folder_btn = QPushButton("Open folder")
-        self.folder_btn.setObjectName("SmallButton")
+        self.open_btn = icon_button("play", "Open")
+        self.open_btn.clicked.connect(lambda: self.job.files and open_file(self.job.files[-1]))
+        self.folder_btn = icon_button("folder", "Show in folder")
         self.folder_btn.clicked.connect(self._open_folder)
-
-        top = hbox(self.title, 12, self.status)
-        top.setStretch(0, 1)
-        middle = vbox(top, 8, self.bar)
-        lay = hbox(self.kind_icon, 14, middle, 10, self.play_btn, self.folder_btn,
-                   self.cancel_btn, spacing=6, margins=(16, 12, 12, 12))
+        text = vbox(self.title, 2, self.status)
+        lay = hbox(self.ring, 11, text, 8, self.open_btn, 6, self.folder_btn, 6, self.cancel_btn,
+                   margins=(11, 10, 11, 10))
         lay.setStretch(2, 1)
         self.setLayout(lay)
         self.refresh()
 
     def _open_folder(self):
-        if self.job.files:
-            show_in_folder(self.job.files[-1])
-        else:
-            show_in_folder(self.job.opts.out_dir)
+        show_in_folder(self.job.files[-1] if self.job.files else self.job.opts.out_dir)
 
     def refresh(self) -> None:
         j = self.job
-        kind = format_label(j.opts.fmt, j.opts.quality)
+        title = j.title
+        if j.opts.clip_start is not None and j.opts.fmt in ("mp3", "mp4"):
+            title += f" ({clip_text(j.opts.clip_start, j.opts.clip_end)})"
         fm = self.title.fontMetrics()
-        self.title.setText(fm.elidedText(j.title, Qt.ElideRight, max(self.title.width(), 200)))
-        self.title.setToolTip(j.title)
-        self.status.setText(f"{kind} · {j.status}")
-        self.status.setObjectName("Error" if j.state == "error" else "Small")
-        self.status.setWordWrap(j.state == "error")
+        self.title.setText(fm.elidedText(title, Qt.ElideRight, max(self.title.width(), 120)))
+        self.title.setToolTip(title)
+        status = f"{short_label(j.opts.fmt, j.opts.quality)} · {j.status}"
+        error = j.state == "error"
+        self.status.setText(status if error else self.status.fontMetrics().elidedText(
+            status, Qt.ElideRight, max(self.status.width(), 120)))
+        self.status.setToolTip(f"{format_label(j.opts.fmt, j.opts.quality)} · {j.status}")
+        self.status.setObjectName("Error" if error else "Small")
+        self.status.setWordWrap(error)
         repolish(self.status)
-        self.bar.setValue(int(j.fraction * 1000))
-        self.bar.setVisible(j.state in ("queued", "running"))
+        icon_name = FORMAT_ICONS.get(j.opts.fmt, "video")
+        self.ring.set(j.fraction, j.state, icon_name)
         done = j.state == "done"
         self.cancel_btn.setVisible(j.state in ("queued", "running"))
         self.folder_btn.setVisible(done)
-        self.play_btn.setVisible(done and len(j.files) == 1)
-        if done:
-            self.kind_icon.setStyleSheet("background: rgba(95,211,154,0.14); border-radius: 8px;")
-            self.kind_icon.setPixmap(theme.icon("check", theme.GREEN, 18, 2.5).pixmap(18, 18))
-        elif j.state == "error":
-            self.kind_icon.setStyleSheet("background: rgba(255,122,133,0.14); border-radius: 8px;")
-            self.kind_icon.setPixmap(theme.icon("alert", theme.RED, 18).pixmap(18, 18))
-        else:
-            self.kind_icon.setStyleSheet("background: #2C2A36; border-radius: 8px;")
-            name = FORMAT_ICONS.get(j.opts.fmt, "video")
-            if j.state == "cancelled":
-                name = "close"
-            self.kind_icon.setPixmap(theme.icon(name, theme.TEXT_2, 18).pixmap(18, 18))
+        self.open_btn.setVisible(done and len(j.files) == 1)
+        self.open_btn.setIcon(theme.icon("image" if j.opts.fmt in ("image", "thumbnail") else "play",
+                                         theme.TEXT_2, 15))
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -272,25 +474,25 @@ class DownloadRow(QFrame):
 
 # -- pages --------------------------------------------------------------------
 
-def scroll_page(inner: QWidget) -> QScrollArea:
+def scroll(inner: QWidget) -> QScrollArea:
     area = QScrollArea()
     area.setWidgetResizable(True)
     area.setFrameShape(QFrame.NoFrame)
     inner.setObjectName("Page")
     area.setWidget(inner)
+    area.viewport().setAutoFillBackground(False)
     return area
 
 
-def page_container(content_layout: QVBoxLayout) -> QWidget:
-    """Centres content with a max width, like the design."""
+def centered(content_layout, max_width: int = 900, margins=(30, 26, 30, 30)) -> QWidget:
     content = QWidget()
     content.setObjectName("Page")
-    content.setMaximumWidth(880)
+    content.setMaximumWidth(max_width)
     content.setLayout(content_layout)
     outer = QWidget()
-    lay = hbox(margins=(40, 36, 40, 48))
-    lay.addWidget(content, 1)
-    lay.addStretch(0)
+    outer.setObjectName("Page")
+    lay = hbox(None, content, None, margins=margins)
+    lay.setStretch(1, 100)
     outer.setLayout(lay)
     return outer
 
@@ -301,156 +503,216 @@ class DownloadPage(QWidget):
         self.settings, self.manager = settings, manager
         self.info: MediaInfo | None = None
         self.info_url = ""
+        self.choice = settings["format"] if settings["format"] in ("mp3", "mp4") else "mp3"
         self.image_mode = False        # a Pinterest image pin: save the picture
         self.info_proc: QProcess | None = None
         self.net = QNetworkAccessManager(self)
         self.rows: dict[int, DownloadRow] = {}
         self.engine_ready = False
-
-        # Header
-        h1 = label("What do you want to save?", "H1")
-        sub = label("Paste a link from YouTube, Instagram, Facebook, X, Vimeo or Pinterest. "
-                    "Clipnest saves the original file, with no watermark.", "Sub", wrap=True)
+        self._clip_ok = True
 
         # Engine setup banner
-        self.setup_box = card()
-        self.setup_text = label("Setting up the download engine…", "Small")
+        self.setup_text = label("Setting up the download engine…", "Small", wrap=True)
         self.setup_bar = QProgressBar()
         self.setup_bar.setRange(0, 1000)
         self.setup_bar.setTextVisible(False)
-        self.setup_box.setLayout(vbox(self.setup_text, 8, self.setup_bar, margins=(16, 14, 16, 14)))
+        self.setup_box = frame("Card", vbox(self.setup_text, 8, self.setup_bar, margins=(16, 14, 16, 14)))
 
-        # Link input
-        link_label = label("Link", "Label")
-        self.link_box = QFrame()
-        self.link_box.setObjectName("LinkBox")
-        self.link_box.setFixedHeight(52)
+        # Hero (shown until a link is pasted)
+        self.hero_title = label(f"Paste a link. <span style='color:{theme.ACCENT_SOFT}'>Get the file.</span>", "Hero")
+        self.hero_title.setAlignment(Qt.AlignCenter)
+        self.hero_sub = label("MP3 up to 320 kbps · MP4 up to 4K · thumbnails · any part of a video", "Sub")
+        self.hero_sub.setAlignment(Qt.AlignCenter)
+        sites = hbox(spacing=8)
+        sites.addStretch(1)
+        for name, color in (("YouTube", "#FF4E45"), ("Instagram", "#E1306C"), ("Facebook", "#1877F2"),
+                            ("X", "#E7E7EA"), ("Vimeo", "#1AB7EA"), ("Pinterest", "#E60023")):
+            sites.addWidget(label(f"<span style='color:{color}'>●</span>&nbsp; {name}", "SiteChip"))
+        sites.addStretch(1)
+        self.hero_sites = QWidget()
+        self.hero_sites.setLayout(sites)
+        paste_key = "Cmd" if engine.IS_MAC else "Ctrl"
+        self.hero_tip = label(f"Tip: copy a link anywhere and Clipnest fills it in, or press "
+                              f"<span style='color:{theme.TEXT_2}'><b>{paste_key} + V</b></span>", "Small")
+        self.hero_tip.setAlignment(Qt.AlignCenter)
+
+        # Paste box
         self.link = QLineEdit()
         self.link.setObjectName("LinkInput")
-        self.link.setPlaceholderText("https://www.youtube.com/watch?v=…")
+        self.link.setPlaceholderText("Paste a YouTube, Instagram or other link")
         self.link.setClearButtonEnabled(True)
         self.link.setAccessibleName("Link")
-        link_label.setBuddy(self.link)
         self.link.installEventFilter(self)
-        self.link_box.setLayout(hbox(icon_label("link", theme.MUTED), 10, self.link,
-                                     margins=(16, 0, 10, 0)))
-        paste = QPushButton("  Paste")
-        paste.setIcon(theme.icon("paste", theme.TEXT))
-        paste.setFixedHeight(52)
-        paste.setCursor(Qt.PointingHandCursor)
-        paste.clicked.connect(self.paste)
-        self.link_error = label("", "Error")
+        self.paste_btn = QPushButton("  Paste")
+        self.paste_btn.setIcon(theme.icon("paste", "#FFFFFF", 17))
+        self.paste_btn.setObjectName("Grad")
+        self.paste_btn.setCursor(Qt.PointingHandCursor)
+        self.paste_btn.clicked.connect(self.paste)
+        self.paste_box = frame("PasteBox", hbox(icon_label("link", theme.MUTED), 12, self.link, 10,
+                                                self.paste_btn, margins=(18, 7, 7, 7)))
+        self.paste_box.setFixedHeight(58)
+        glow(self.paste_box, alpha=60, blur=40, dy=12)
+        self.link_error = label("", "Error", wrap=True)
         self.link_error.hide()
 
-        # Preview
-        self.preview = card()
+        # Preview card
         self.thumb = QLabel()
         self.thumb.setObjectName("Thumb")
-        self.thumb.setFixedSize(208, 117)
+        self.thumb.setFixedSize(THUMB_W, THUMB_H)
         self.thumb.setAlignment(Qt.AlignCenter)
         self.duration = label("", "Duration")
         self.duration.setParent(self.thumb)
+        self.thumb_save = QPushButton("  Save thumbnail", self.thumb)
+        self.thumb_save.setObjectName("ThumbSave")
+        self.thumb_save.setIcon(theme.icon("image", "#FFFFFF", 13))
+        self.thumb_save.setIconSize(QSize(13, 13))
+        self.thumb_save.setCursor(Qt.PointingHandCursor)
+        self.thumb_save.clicked.connect(lambda: self.start(force="thumbnail"))
         self.chip_source = label("", "Chip")
         self.chip_kind = label("", "Chip")
+        self.chip_quality = label("", "Chip")
         self.media_title = label("", "MediaTitle", wrap=True)
         self.media_meta = label("", "Muted", wrap=True)
-        info_col = vbox(hbox(self.chip_source, self.chip_kind, None, spacing=8), 8,
-                        self.media_title, 6, self.media_meta, None)
-        self.preview.setLayout(hbox(self.thumb, 20, info_col, margins=(16, 16, 16, 16)))
-        self.preview.hide()
-
-        # Format
-        self.mp3_card = FormatCard("music", "MP3 audio", "Music, podcasts, Reel audio")
-        self.mp4_card = FormatCard("video", "MP4 video", "720p to 4K, sound included")
-        fmt_group = QButtonGroup(self)
-        fmt_group.addButton(self.mp3_card)
-        fmt_group.addButton(self.mp4_card)
-        fmt_grid = QGridLayout()
-        fmt_grid.setSpacing(12)
-        fmt_grid.addWidget(self.mp3_card, 0, 0)
-        fmt_grid.addWidget(self.mp4_card, 0, 1)
-        self.mp3_card.clicked.connect(lambda: self.set_format("mp3"))
-        self.mp4_card.clicked.connect(lambda: self.set_format("mp4"))
-
-        # Quality pills
         self.pill_row = QHBoxLayout()
         self.pill_row.setSpacing(8)
         self.pill_group = QButtonGroup(self)
         self.pills: dict[str, QPushButton] = {}
+        self.pill_hint = label("", "Small")
+        self.pill_box = QWidget()
+        self.pill_box.setLayout(hbox(self.pill_row, 10, self.pill_hint, None))
+        info_col = vbox(hbox(self.chip_source, 6, self.chip_kind, 6, self.chip_quality, None), 8,
+                        self.media_title, 4, self.media_meta, None, self.pill_box)
 
-        # Options
-        self.opt_cover = QCheckBox("Add cover art")
-        self.opt_tags = QCheckBox("Add title && artist tags")
-        self.opt_subs = QCheckBox("Download subtitles")
-        self.opt_playlist = QCheckBox("Download whole playlist")
-        for box, key in ((self.opt_cover, "cover_art"), (self.opt_tags, "tags"),
-                         (self.opt_subs, "subtitles"), (self.opt_playlist, "playlist")):
-            box.setChecked(settings[key])
-            box.setCursor(Qt.PointingHandCursor)
-            box.toggled.connect(lambda on, k=key: self.settings.set(k, on))
-        options = vbox(self.opt_cover, self.opt_tags, self.opt_subs, self.opt_playlist, spacing=10)
+        # MP3 / MP4 / Thumbnail
+        self.card_mp3 = ChoiceCard("music", "MP3 audio", "Cover art & tags")
+        self.card_mp4 = ChoiceCard("video", "MP4 video", "Up to 4K, with sound")
+        self.card_thumb = ChoiceCard("image", "Thumbnail", "Best size, JPG")
+        group = QButtonGroup(self)
+        for c, key in ((self.card_mp3, "mp3"), (self.card_mp4, "mp4"), (self.card_thumb, "thumbnail")):
+            group.addButton(c)
+            c.clicked.connect(lambda _=False, k=key: self.set_choice(k))
+        choices = hbox(self.card_mp3, 10, self.card_mp4, 10, self.card_thumb)
 
-        save_box = card()
-        self.save_dir = label("", None)
-        self.save_dir.setStyleSheet("font-size: 13px;")
-        change = QPushButton("Change")
-        change.setObjectName("SmallButton")
-        change.clicked.connect(self.change_dir)
-        save_box.setLayout(hbox(icon_label("folder", theme.MUTED), 12,
-                                vbox(label("Save to", "Small"), self.save_dir), 16, change,
-                                margins=(14, 10, 10, 10)))
+        # Only part of it
+        self.trim_on = switch("")
+        self.trim_on.setAccessibleName("Download only part of it")
+        self.trim_on.toggled.connect(self.on_trim_toggled)
+        self.time_from = QLineEdit()
+        self.time_to = QLineEdit()
+        for t, name in ((self.time_from, "Start"), (self.time_to, "End")):
+            t.setObjectName("TimeBox")
+            t.setFixedWidth(84)
+            t.setAlignment(Qt.AlignCenter)
+            t.setAccessibleName(f"{name} time")
+            t.textEdited.connect(self.on_times_typed)
+        self.time_to.setPlaceholderText("end")
+        self.clip_len = label("", "Small")
+        self.timeline = Timeline()
+        self.timeline.range_changed.connect(self.on_timeline)
+        self.tl_start = label("0:00", "Small")
+        self.tl_end = label("", "Small")
+        self.clip_error = label("", "Error")
+        self.clip_error.hide()
+        self.trim_body = QWidget()
+        self.trim_body.setLayout(vbox(10, self.timeline, 5, hbox(self.tl_start, None, self.tl_end),
+                                      self.clip_error))
+        self.trim_times = QWidget()
+        self.trim_times.setLayout(hbox(self.time_from, 8, label("to", "Muted"), 8, self.time_to, 10,
+                                       self.clip_len))
+        trim_title = label("Only part of it", None)
+        trim_title.setStyleSheet("font-weight: 600; background: transparent;")
+        self.trim = frame("Card", vbox(
+            hbox(icon_label("scissors", theme.ACCENT_SOFT), 10, trim_title, None, self.trim_times, 12,
+                 self.trim_on),
+            self.trim_body, margins=(14, 12, 14, 12)))
 
+        # Options + Download
+        self.opt_tags = switch("Cover art && tags")
+        self.opt_tags.setChecked(settings["cover_art"] and settings["tags"])
+        self.opt_tags.toggled.connect(lambda on: (self.settings.set("cover_art", on),
+                                                  self.settings.set("tags", on)))
+        self.opt_subs = switch("Subtitles")
+        self.opt_subs.setChecked(settings["subtitles"])
+        self.opt_subs.toggled.connect(lambda on: self.settings.set("subtitles", on))
+        self.opt_playlist = switch("Whole playlist")
+        self.opt_playlist.setChecked(settings["playlist"])
+        self.opt_playlist.toggled.connect(lambda on: (self.settings.set("playlist", on),
+                                                      self.refresh_mode()))
         self.go = QPushButton()
-        self.go.setObjectName("Primary")
+        self.go.setObjectName("Go")
         self.go.setIcon(theme.icon("download", "#FFFFFF", 20, 2.2))
         self.go.setIconSize(QSize(20, 20))
         self.go.setCursor(Qt.PointingHandCursor)
-        self.go.clicked.connect(self.start)
+        self.go.clicked.connect(lambda: self.start())
+        glow(self.go, alpha=120, blur=40, dy=12)
+        opts = vbox(self.opt_tags, self.opt_subs, self.opt_playlist, spacing=8)
+        bottom = hbox(opts, 18, self.go)
+        bottom.setStretch(2, 1)
 
-        # Downloads list
-        self.list_box = vbox(spacing=12)
-        self.empty = label("Your downloads will show up here.", "Small")
+        self.result = frame("Panel", vbox(
+            hbox(self.thumb, 18, info_col), 16, choices, 12, self.trim, 14, bottom,
+            margins=(16, 16, 16, 16)))
+        self.result.hide()
+
+        # Work area: hero or result, vertically centred when empty
+        self.space_top = QWidget()
+        self.space_bottom = QWidget()
+        for s in (self.space_top, self.space_bottom):
+            s.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.paste_row = hbox(None, self.paste_box, None)
+        work = vbox(self.space_top, self.setup_box, 4, self.hero_title, 8, self.hero_sub, 22,
+                    self.paste_row, 8, self.link_error, 10, self.hero_sites, 14, self.hero_tip,
+                    12, self.result, self.space_bottom)
+        self.paste_row.setStretch(1, 100)
+
+        # Downloads rail
         clear = QPushButton("Clear finished")
-        clear.setObjectName("SmallButton")
+        clear.setObjectName("LinkButton")
+        clear.setCursor(Qt.PointingHandCursor)
         clear.clicked.connect(self.clear_finished)
+        rail_title = label("Downloads", None)
+        rail_title.setStyleSheet("font-size: 15px; font-weight: 700; background: transparent;")
+        self.list_box = vbox(spacing=10)
+        list_inner = QWidget()
+        list_inner.setLayout(vbox(self.list_box, None))
+        self.empty = QWidget()
+        nothing = label("Nothing yet", None)
+        nothing.setStyleSheet(f"font-weight: 600; color: {theme.TEXT_2}; background: transparent;")
+        nothing.setAlignment(Qt.AlignCenter)
+        hint = label("Your downloads appear here.", "Small")
+        hint.setAlignment(Qt.AlignCenter)
+        arrow = icon_label("download", theme.ACCENT_SOFT, 28, 2.2)
+        self.empty.setLayout(vbox(None, hbox(None, arrow, None), 8, nothing, 2, hint, None))
+        self.save_btn = QPushButton()
+        self.save_btn.setObjectName("LinkButton")
+        self.save_btn.setIcon(theme.icon("folder", theme.MUTED, 14))
+        self.save_btn.setCursor(Qt.PointingHandCursor)
+        self.save_btn.setToolTip("Change where files are saved")
+        self.save_btn.clicked.connect(self.change_dir)
+        foot = frame("Transparent", hbox(self.save_btn, None, margins=(0, 10, 0, 0)))
+        foot.setStyleSheet(f"#Transparent {{ border-top: 1px solid {theme.BORDER}; }}")
+        self.rail_scroll = scroll(list_inner)
+        rail = frame("Rail", vbox(hbox(rail_title, None, clear), 12, self.rail_scroll, self.empty,
+                                  foot, margins=(18, 20, 18, 14)))
+        rail.setFixedWidth(330)
 
-        lay = vbox(spacing=0)
-        lay.addLayout(vbox(h1, 8, sub))
-        lay.addSpacing(28)
-        lay.addWidget(self.setup_box)
-        lay.addLayout(vbox(link_label, 8, hbox(self.link_box, 10, paste), 8, self.link_error))
-        lay.addSpacing(20)
-        lay.addWidget(self.preview)
-        lay.addSpacing(24)
-        self.fmt_section = QWidget()
-        self.fmt_section.setLayout(vbox(
-            label("Format", "Label"), 10, fmt_grid, 24,
-            label("Quality", "Label"), 10, hbox(self.pill_row, None), 24))
-        lay.addWidget(self.fmt_section)
-        lay.addLayout(hbox(options, None, save_box, spacing=24))
-        lay.addSpacing(28)
-        lay.addWidget(self.go)
-        lay.addSpacing(32)
-        lay.addLayout(hbox(label("Downloads", "H2"), None, clear))
-        lay.addSpacing(12)
-        lay.addWidget(self.empty)
-        lay.addLayout(self.list_box)
-        lay.addStretch(1)
-
+        page = GlowBackground()
+        page.setLayout(hbox(scroll(centered(work)), rail))
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(scroll_page(page_container(lay)))
+        root.addWidget(page)
 
         self.fetch_timer = QTimer(self, singleShot=True, interval=500)
         self.fetch_timer.timeout.connect(self.fetch_info)
         self.link.textChanged.connect(self.on_link_changed)
-        self.link.returnPressed.connect(self.start)
-
+        self.link.returnPressed.connect(lambda: self.start())
         manager.job_added.connect(self.add_row)
         manager.job_changed.connect(lambda j: j.id in self.rows and self.rows[j.id].refresh())
 
-        self.set_format(settings["format"])
+        self.set_choice(self.choice)
         self.set_engine_ready(False)
+        self.show_result(False)
+        self.rail_scroll.hide()
 
     # -- engine
     def set_engine_progress(self, text: str, frac: float) -> None:
@@ -471,30 +733,46 @@ class DownloadPage(QWidget):
             self.setup_text.setText("Couldn't set up the download engine: " + error +
                                     "\nCheck your internet connection and restart Clipnest.")
             self.setup_text.setObjectName("Error")
-            self.setup_text.setWordWrap(True)
             repolish(self.setup_text)
             self.setup_bar.hide()
+        else:
+            self.setup_box.hide()
         self.update_button()
         if ready and self.link.text().strip():
             self.fetch_info()
 
-    # -- format & quality
-    def fmt(self) -> str:
-        return "mp3" if self.mp3_card.isChecked() else "mp4"
+    # -- layout states
+    def show_result(self, on: bool) -> None:
+        for w in (self.hero_title, self.hero_sub, self.hero_sites, self.hero_tip, self.space_top):
+            w.setVisible(not on)
+        self.result.setVisible(on)
+        self.paste_box.setMaximumWidth(16777215 if on else 680)
 
-    def set_format(self, fmt: str) -> None:
-        self.settings.set("format", fmt)
-        (self.mp3_card if fmt == "mp3" else self.mp4_card).setChecked(True)
-        self.mp3_card._sync(fmt == "mp3")
-        self.mp4_card._sync(fmt == "mp4")
+    # -- choice, quality, options
+    def fmt(self) -> str:
+        if self.image_mode:
+            return "image"
+        return self.choice
+
+    def set_choice(self, key: str) -> None:
+        self.choice = key
+        if key in ("mp3", "mp4"):
+            self.settings.set("format", key)
+        {"mp3": self.card_mp3, "mp4": self.card_mp4, "thumbnail": self.card_thumb}[key].setChecked(True)
+        self.build_pills()
+        self.refresh_mode()
+
+    def build_pills(self) -> None:
         for btn in self.pills.values():
             self.pill_group.removeButton(btn)
             btn.deleteLater()
         self.pills = {}
+        fmt = self.choice
+        if fmt not in ("mp3", "mp4"):
+            return
         current = self.settings[f"{fmt}_quality"]
         for q in (MP3_QUALITIES if fmt == "mp3" else MP4_QUALITIES):
-            text, tag = QUALITY_LABELS[fmt][q]
-            btn = QPushButton(f"{text}   {tag}" if tag else text)
+            btn = QPushButton(PILL_LABELS[fmt][q])
             btn.setObjectName("Pill")
             btn.setCheckable(True)
             btn.setCursor(Qt.PointingHandCursor)
@@ -503,56 +781,118 @@ class DownloadPage(QWidget):
             self.pill_group.addButton(btn)
             self.pill_row.addWidget(btn)
             self.pills[q] = btn
-        self.apply_mode()
-
-    def apply_mode(self) -> None:
-        """Shows the controls that fit the format, or image mode for image pins."""
-        fmt, img = self.fmt(), self.image_mode
-        self.fmt_section.setVisible(not img)
-        self.opt_cover.setVisible(fmt == "mp3" and not img)
-        self.opt_tags.setVisible(fmt == "mp3" and not img)
-        self.opt_subs.setVisible(fmt == "mp4" and not img)
-        self.opt_playlist.setVisible(not img)
-        self.save_dir.setText(self.settings[f"{self.dir_key()}_dir"])
-        self.update_button()
-
-    def dir_key(self) -> str:
-        return "mp4" if self.image_mode else self.fmt()     # images go with videos
-
-    def set_image_mode(self, on: bool) -> None:
-        if on != self.image_mode:
-            self.image_mode = on
-            self.apply_mode()
+        self.pill_hint.setText("MP3 quality" if fmt == "mp3" else "MP4 quality")
 
     def set_quality(self, q: str) -> None:
-        self.settings.set(f"{self.fmt()}_quality", q)
+        self.settings.set(f"{self.choice}_quality", q)
+        self.update_button()
+
+    def refresh_mode(self) -> None:
+        """Shows the controls that fit the link and the chosen format."""
+        fmt, img = self.fmt(), self.image_mode
+        info = self.info if self.info_url == self.link.text().strip() else None
+        playlist = bool(info and info.is_playlist)
+        self.card_mp3.setVisible(not img)
+        self.card_mp4.setVisible(not img)
+        if img:
+            size = info.image_size if info else None
+            self.card_thumb.set_text("Image", f"Original, {size[0]} × {size[1]}" if size else "Original size")
+            self.card_thumb.setChecked(True)
+        else:
+            self.card_thumb.set_text("Thumbnail", "Best size, JPG")
+        self.pill_box.setVisible(fmt in ("mp3", "mp4"))
+        self.thumb_save.setVisible(not img and bool(info) and not playlist)
+        can_trim = fmt in ("mp3", "mp4") and not playlist and bool(info and info.duration) \
+            and not self.opt_playlist.isChecked()
+        self.trim.setVisible(can_trim)
+        self.opt_tags.setVisible(fmt == "mp3")
+        self.opt_subs.setVisible(fmt == "mp4")
+        self.opt_playlist.setVisible(playlist)
+        self.save_btn.setText(f"  Saving to {folder_name(self.settings[self.dir_key() + '_dir'])}")
+        self.update_clip()
+
+    def dir_key(self) -> str:
+        return "mp3" if self.fmt() == "mp3" else "mp4"     # videos and pictures together
+
+    # -- only part of it
+    def on_trim_toggled(self, on: bool) -> None:
+        if on and self.info and self.info.duration and not self.time_from.text():
+            d = self.info.duration
+            start, end = (0.0, d) if d <= 60 else (min(60.0, d / 4), min(d, min(60.0, d / 4) + 60))
+            self.time_from.setText(format_time(start))
+            self.time_to.setText(format_time(end))
+        self.update_clip()
+
+    def on_times_typed(self, _text: str) -> None:
+        self.update_clip()
+
+    def on_timeline(self, start: float, end: float) -> None:
+        self.time_from.setText(format_time(start))
+        self.time_to.setText(format_time(end))
+        self.update_clip(from_timeline=True)
+
+    def clip(self) -> tuple[float | None, float | None]:
+        if not (self.trim.isVisible() or self.trim.isVisibleTo(self.result)) or not self.trim_on.isChecked():
+            return None, None
+        return parse_time(self.time_from.text()), (parse_time(self.time_to.text())
+                                                   if self.time_to.text().strip() else None)
+
+    def update_clip(self, from_timeline: bool = False) -> None:
+        on = self.trim_on.isChecked() and self.trim.isVisibleTo(self.result)
+        self.trim_body.setVisible(on)
+        self.trim_times.setVisible(on)
+        self._clip_ok = True
+        if on:
+            duration = self.info.duration if self.info else None
+            start, end = self.clip()
+            problem = check_clip(start, end, duration)
+            bad_to = bool(problem) and "end" in problem.lower()
+            for t, bad in ((self.time_from, bool(problem) and not bad_to), (self.time_to, bad_to)):
+                t.setProperty("bad", "true" if bad else "false")
+                repolish(t)
+            self.clip_error.setText(problem)
+            self.clip_error.setVisible(bool(problem))
+            self._clip_ok = not problem
+            if not problem and start is not None:
+                stop = end if end is not None else (duration or start)
+                self.clip_len.setText(f"Clip {format_time(stop - start)}")
+                if duration and not from_timeline:
+                    self.timeline.set_range(start, stop)
+            else:
+                self.clip_len.setText("")
+            if duration:
+                self.timeline.set_duration(duration)
+                self.tl_end.setText(format_time(duration))
         self.update_button()
 
     def update_button(self) -> None:
-        if self.image_mode:
-            size = self.info.image_size if self.info else None
-            self.go.setText("  Download image · original" +
-                            (f" ({size[0]} × {size[1]})" if size else ""))
-            self.go.setEnabled(self.engine_ready)
-            return
         fmt = self.fmt()
-        q = self.settings[f"{fmt}_quality"]
-        text = QUALITY_LABELS[fmt][q][0]
-        self.go.setText(f"  Download {fmt.upper()} · {text}")
-        self.go.setEnabled(self.engine_ready)
+        if fmt == "image":
+            size = self.info.image_size if self.info else None
+            text = "Download image · original" + (f" ({size[0]} × {size[1]})" if size else "")
+        elif fmt == "thumbnail":
+            text = "Download thumbnail · JPG"
+        else:
+            q = self.settings[f"{fmt}_quality"]
+            text = f"Download {fmt.upper()} · {QUALITY_LABELS[fmt][q][0]}"
+            start, end = self.clip()
+            if start is not None and self._clip_ok:
+                text += f" · {clip_text(start, end)}"
+        self.go.setText("  " + text)
+        self.go.setEnabled(self.engine_ready and self._clip_ok)
 
     def change_dir(self) -> None:
-        fmt = self.dir_key()
-        d = QFileDialog.getExistingDirectory(self, "Save downloads to", self.settings[f"{fmt}_dir"])
+        key = self.dir_key()
+        d = QFileDialog.getExistingDirectory(self, "Save downloads to", self.settings[f"{key}_dir"])
         if d:
-            self.settings.set(f"{fmt}_dir", d)
-            self.save_dir.setText(d)
+            self.settings.set(f"{key}_dir", d)
+            self.refresh_mode()
 
     # -- link & preview
     def eventFilter(self, obj, event):
         if obj is self.link and event.type() in (QEvent.FocusIn, QEvent.FocusOut):
-            self.link_box.setProperty("focused", "true" if event.type() == QEvent.FocusIn else "false")
-            repolish(self.link_box)
+            self.paste_box.setProperty("focused", "true" if event.type() == QEvent.FocusIn else "false")
+            repolish(self.paste_box)
         return super().eventFilter(obj, event)
 
     def paste(self) -> None:
@@ -572,9 +912,13 @@ class DownloadPage(QWidget):
     def on_link_changed(self, text: str) -> None:
         self.link_error.hide()
         if not text.strip():
-            self.preview.hide()
             self.info = None
-        self.set_image_mode(False)
+            self.info_url = ""
+            self.show_result(False)
+        self.image_mode = False
+        self.trim_on.setChecked(False)
+        self.time_from.clear()
+        self.time_to.clear()
         self.fetch_timer.start()
 
     def fetch_info(self) -> None:
@@ -620,19 +964,23 @@ class DownloadPage(QWidget):
         if url != self.link.text().strip():
             return
         self.info_url = ""
-        self.preview.hide()
+        self.show_result(False)
         self.link_error.setText(text)
-        self.link_error.setWordWrap(True)
         self.link_error.show()
 
     def show_preview_loading(self, url: str) -> None:
-        self.preview.show()
+        self.show_result(True)
         self.chip_source.setText(detect_source(url) or "Link")
+        self.chip_source.setObjectName("ChipRed" if detect_source(url) in ("YouTube", "YouTube Music") else "Chip")
+        repolish(self.chip_source)
         self.chip_kind.setText("Looking up…")
+        self.chip_quality.hide()
         self.media_title.setText("Getting details…")
         self.media_meta.setText("")
         self.duration.hide()
+        self.thumb_save.hide()
         self.thumb.setPixmap(theme.icon("play", theme.MUTED, 28).pixmap(28, 28))
+        self.refresh_mode()
 
     def on_info(self, proc: QProcess, url: str, code: int) -> None:
         out = bytes(proc.readAllStandardOutput()).decode("utf-8", "replace")
@@ -643,40 +991,36 @@ class DownloadPage(QWidget):
         if url != self.link.text().strip():
             return
         if code != 0 or not out.strip():
-            from .jobs import friendly_error
-            self.info_url = ""
-            self.preview.hide()
-            self.link_error.setText(friendly_error(err or "Couldn't read this link."))
-            self.link_error.setWordWrap(True)
-            self.link_error.show()
+            self.show_link_error(url, friendly_error(err or "Couldn't read this link."))
             return
         try:
             info = parse_info(out)
         except ValueError:
-            self.preview.hide()
+            self.show_link_error(url, "Couldn't read this link.")
             return
         self.info = info
-        source = detect_source(url) or info.source
-        self.chip_source.setText(source)
         self.chip_kind.setText(info.kind)
+        best = ("Up to " + _height_name(info.max_height)) if info.max_height and not info.is_playlist else ""
+        self.chip_quality.setText(best)
+        self.chip_quality.setVisible(bool(best))
         self.media_title.setText(info.title)
         meta = [info.uploader] if info.uploader else []
         if info.is_playlist:
             meta.append(f"{info.entries} videos")
             if not self.opt_playlist.isChecked():
-                meta.append("tick “Download whole playlist” to get them all")
+                meta.append("switch on “Whole playlist” to get them all")
         elif info.image_size:
             meta.append(f"Original image, {info.image_size[0]} × {info.image_size[1]}")
-        elif info.max_height:
-            meta.append(f"Available up to {_height_name(info.max_height)}")
         self.media_meta.setText(" · ".join(meta))
-        self.set_image_mode(info.kind == "Image")
-        self.update_button()
+        self.image_mode = info.kind == "Image"
         dur = format_duration(info.duration)
         self.duration.setText(dur)
         self.duration.adjustSize()
-        self.duration.move(208 - self.duration.width() - 8, 117 - self.duration.height() - 8)
+        self.duration.move(THUMB_W - self.duration.width() - 8, THUMB_H - self.duration.height() - 8)
         self.duration.setVisible(bool(dur))
+        self.thumb_save.adjustSize()
+        self.thumb_save.move(8, THUMB_H - self.thumb_save.height() - 8)
+        self.refresh_mode()
         if info.thumbnail:
             req = QNetworkRequest(QUrl(info.thumbnail))
             req.setHeader(QNetworkRequest.UserAgentHeader, "Mozilla/5.0")
@@ -689,16 +1033,19 @@ class DownloadPage(QWidget):
             return
         px = QPixmap()
         if px.loadFromData(bytes(reply.readAll())):
-            dpr = self.devicePixelRatioF()
-            size = QSize(int(208 * dpr), int(117 * dpr))
-            px = px.scaled(size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            x, y = (px.width() - size.width()) // 2, (px.height() - size.height()) // 2
-            px = _rounded(px.copy(x, y, size.width(), size.height()), 8 * dpr)
-            px.setDevicePixelRatio(dpr)
-            self.thumb.setPixmap(px)
+            self.set_thumbnail(px)
+
+    def set_thumbnail(self, px: QPixmap) -> None:
+        dpr = self.devicePixelRatioF()
+        size = QSize(int(THUMB_W * dpr), int(THUMB_H * dpr))
+        px = px.scaled(size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        x, y = (px.width() - size.width()) // 2, (px.height() - size.height()) // 2
+        px = _rounded(px.copy(x, y, size.width(), size.height()), 12 * dpr)
+        px.setDevicePixelRatio(dpr)
+        self.thumb.setPixmap(px)
 
     # -- downloading
-    def start(self) -> None:
+    def start(self, force: str = "") -> None:
         url = self.link.text().strip()
         if not self.engine_ready:
             return
@@ -710,33 +1057,39 @@ class DownloadPage(QWidget):
         if reason := unsupported_reason(url):
             self.show_link_error(url, reason)
             return
-        image = self.image_mode and self.info is not None and self.info_url == url
-        fmt = "image" if image else self.fmt()
-        out_dir = self.settings[f"{self.dir_key() if image else fmt}_dir"]
+        fmt = force or self.fmt()
+        if fmt in ("mp3", "mp4") and not self._clip_ok:
+            return
+        key = "mp3" if fmt == "mp3" else "mp4"
+        out_dir = self.settings[f"{key}_dir"]
         try:
             Path(out_dir).mkdir(parents=True, exist_ok=True)
         except OSError:
             self.link_error.setText(f"Can't save to {out_dir}. Choose another folder.")
             self.link_error.show()
             return
+        start, end = self.clip() if fmt in ("mp3", "mp4") else (None, None)
         opts = JobOptions(
             url=url, fmt=fmt, out_dir=out_dir,
-            quality="original" if image else self.settings[f"{fmt}_quality"],
-            cover_art=self.opt_cover.isChecked(), tags=self.opt_tags.isChecked(),
-            subtitles=self.opt_subs.isChecked(), playlist=self.opt_playlist.isChecked(),
+            quality=self.settings[f"{fmt}_quality"] if fmt in ("mp3", "mp4") else "original",
+            cover_art=self.opt_tags.isChecked(), tags=self.opt_tags.isChecked(),
+            subtitles=self.opt_subs.isChecked() and fmt == "mp4",
+            playlist=self.opt_playlist.isChecked() and bool(self.info and self.info.is_playlist),
             cookies_browser=browsers.cookies_arg(self.settings["cookies_browser"]),
+            clip_start=start, clip_end=end,
+            apple_convert=engine.IS_MAC and self.settings["apple_convert"],
         )
         title = self.info.title if self.info and self.info_url == url else url
         self.manager.add(opts, title)
-        self.link.clear()
-        self.info_url = ""
-        self.set_image_mode(False)
+        if not force:                      # "Save thumbnail" keeps the link for more
+            self.link.clear()
 
     def add_row(self, job: Job) -> None:
         row = DownloadRow(job, self.manager)
         self.rows[job.id] = row
         self.list_box.insertWidget(0, row)
         self.empty.hide()
+        self.rail_scroll.show()
 
     def clear_finished(self) -> None:
         for jid, row in list(self.rows.items()):
@@ -744,44 +1097,24 @@ class DownloadPage(QWidget):
                 row.deleteLater()
                 del self.rows[jid]
         self.empty.setVisible(not self.rows)
+        self.rail_scroll.setVisible(bool(self.rows))
 
 
-def _height_name(h: int) -> str:
-    if h >= 2160:
-        return "4K"
-    if h >= 1440:
-        return "1440p"
-    return f"{h}p"
-
-
-def _rounded(px: QPixmap, radius: float) -> QPixmap:
-    from PySide6.QtGui import QPainter, QPainterPath
-    out = QPixmap(px.size())
-    out.fill(Qt.transparent)
-    p = QPainter(out)
-    p.setRenderHint(QPainter.Antialiasing)
-    path = QPainterPath()
-    path.addRoundedRect(0, 0, px.width(), px.height(), radius, radius)
-    p.setClipPath(path)
-    p.drawPixmap(0, 0, px)
-    p.end()
-    return out
-
-
-class HistoryPage(QWidget):
+class HistoryPage(GlowBackground):
     def __init__(self, history: History):
         super().__init__()
         self.history = history
         clear = QPushButton("Clear history")
         clear.setObjectName("SmallButton")
+        clear.setCursor(Qt.PointingHandCursor)
         clear.clicked.connect(self.clear)
         self.list_box = vbox(spacing=10)
-        lay = vbox(hbox(label("History", "H1"), None, clear), 8,
-                   label("Everything you've downloaded with Clipnest.", "Sub"), 28,
+        lay = vbox(hbox(label("History", "H1"), None, clear), 6,
+                   label("Everything you've downloaded with Clipnest.", "Sub"), 24,
                    self.list_box, None)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(scroll_page(page_container(lay)))
+        root.addWidget(scroll(centered(lay, 900, (30, 30, 30, 30))))
         self.reload()
 
     def clear(self) -> None:
@@ -803,42 +1136,35 @@ class HistoryPage(QWidget):
             self.list_box.addWidget(self._row(item))
 
     def _row(self, item: dict) -> QFrame:
-        row = card()
         files = [f for f in item.get("files", []) if f]
         exists = any(Path(f).exists() for f in files)
         kind = item.get("fmt", "mp3")
         ic = QLabel()
-        ic.setFixedSize(40, 40)
+        ic.setFixedSize(38, 38)
         ic.setAlignment(Qt.AlignCenter)
-        ic.setStyleSheet("background: #2C2A36; border-radius: 8px;")
-        ic.setPixmap(theme.icon(FORMAT_ICONS.get(kind, "video"), theme.TEXT_2).pixmap(18, 18))
+        ic.setStyleSheet(f"background: {theme.SURFACE_2}; border-radius: 10px;")
+        ic.setPixmap(theme.icon(FORMAT_ICONS.get(kind, "video"), theme.TEXT_2, 17).pixmap(17, 17))
         title = label(item.get("title", ""), None)
-        title.setStyleSheet("font-weight: 600;")
+        title.setStyleSheet("font-weight: 600; background: transparent;")
         title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         when = time.strftime("%d %b %Y, %H:%M", time.localtime(item.get("time", 0)))
         extra = f" · {len(files)} files" if len(files) > 1 else ""
         meta = label(f"{format_label(kind, item.get('quality', ''))}{extra} · {when}" +
                      ("" if exists else " · file moved or deleted"), "Small")
-        lay = hbox(ic, 14, vbox(title, 4, meta), 10, spacing=6, margins=(16, 12, 12, 12))
+        lay = hbox(ic, 14, vbox(title, 3, meta), 10, spacing=6, margins=(14, 11, 12, 11))
         lay.setStretch(2, 1)
         if exists:
             if len(files) == 1:
-                play = QPushButton()
-                play.setObjectName("IconButton")
-                play.setIcon(theme.icon("play", theme.TEXT_2, 16))
-                play.setToolTip("Open")
-                play.setAccessibleName("Open file")
+                play = icon_button("image" if kind in ("image", "thumbnail") else "play", "Open")
                 play.clicked.connect(lambda: open_file(files[0]))
                 lay.addWidget(play)
-            folder = QPushButton("Open folder")
-            folder.setObjectName("SmallButton")
+            folder = icon_button("folder", "Show in folder")
             folder.clicked.connect(lambda: show_in_folder(files[-1]))
             lay.addWidget(folder)
-        row.setLayout(lay)
-        return row
+        return frame("Card", lay)
 
 
-class SettingsPage(QWidget):
+class SettingsPage(GlowBackground):
     update_requested = Signal()
 
     def __init__(self, settings: Settings):
@@ -847,9 +1173,7 @@ class SettingsPage(QWidget):
         self.dir_labels: dict[str, QLabel] = {}
 
         def section(title: str, *rows) -> QFrame:
-            box = card()
-            box.setLayout(vbox(label(title, "H2"), 14, *rows, spacing=0, margins=(20, 18, 20, 20)))
-            return box
+            return frame("Panel", vbox(label(title, "H2"), 14, *rows, spacing=0, margins=(20, 18, 20, 20)))
 
         def folder_row(fmt: str, text: str):
             lb = label(settings[f"{fmt}_dir"], "Small")
@@ -857,12 +1181,13 @@ class SettingsPage(QWidget):
             self.dir_labels[fmt] = lb
             btn = QPushButton("Change")
             btn.setObjectName("SmallButton")
+            btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(lambda: self.change_dir(fmt))
             row = hbox(vbox(label(text), 2, lb), 16, btn)
             row.setStretch(0, 1)
             return vbox(row, 12)
 
-        # Only browsers that are actually on this PC. A saved choice whose
+        # Only browsers that are actually on this computer. A saved choice whose
         # browser has gone (or never existed) falls back to no login.
         if settings["cookies_browser"] and not browsers.is_installed(settings["cookies_browser"]):
             settings.set("cookies_browser", "")
@@ -871,59 +1196,71 @@ class SettingsPage(QWidget):
         for b in browsers.installed():
             self.browser.addItem(b.name, b.key)
         self.browser.setCurrentIndex(max(0, self.browser.findData(settings["cookies_browser"])))
-        self.browser.currentIndexChanged.connect(
-            lambda: self.settings.set("cookies_browser", self.browser.currentData()))
+        self.browser.currentIndexChanged.connect(self.on_browser)
         self.browser.setAccessibleName("Browser to use for logins")
+        self.browser_warning = label(
+            "Chrome, Edge, Brave and Opera on Windows lock their logins, so Clipnest often can't "
+            "use them. Firefox works best. If the login can't be read, Clipnest tries without it.",
+            "Warn", wrap=True)
 
-        auto_paste = QCheckBox("Fill in links I copy automatically")
+        auto_paste = switch("Fill in links I copy automatically")
         auto_paste.setChecked(settings["auto_paste"])
         auto_paste.toggled.connect(lambda on: self.settings.set("auto_paste", on))
-        auto_update = QCheckBox("Update the download engine when Clipnest starts")
+        auto_update = switch("Update the download engine when Clipnest starts")
         auto_update.setChecked(settings["auto_update"])
         auto_update.toggled.connect(lambda on: self.settings.set("auto_update", on))
+        apple = switch("Make 4K and 1440p videos play in QuickTime and on iPhone")
+        apple.setChecked(settings["apple_convert"])
+        apple.toggled.connect(lambda on: self.settings.set("apple_convert", on))
+        apple_note = label("YouTube's 4K comes as VP9 or AV1, which QuickTime can't play. Clipnest "
+                           "converts it to HEVC with your Mac's video chip after downloading.",
+                           "Small", wrap=True)
+        general = [auto_paste, 10, auto_update]
+        if engine.IS_MAC:
+            general += [10, apple, 4, apple_note]
 
         self.engine_text = label("Checking…", "Small", wrap=True)
         self.update_btn = QPushButton("  Check for updates")
         self.update_btn.setIcon(theme.icon("refresh", theme.TEXT))
         self.update_btn.setObjectName("SmallButton")
+        self.update_btn.setCursor(Qt.PointingHandCursor)
         self.update_btn.clicked.connect(self.update_requested.emit)
-
         engine_row = hbox(self.engine_text, 16, self.update_btn)
         engine_row.setStretch(0, 1)
 
         lay = vbox(
-            label("Settings", "H1"), 28,
-            section("Save locations", folder_row("mp3", "MP3 audio"), folder_row("mp4", "MP4 video and images")),
-            20,
+            label("Settings", "H1"), 24,
+            section("Save locations", folder_row("mp3", "MP3 audio"),
+                    folder_row("mp4", "MP4 video, thumbnails and images")),
+            18,
             section("Logins",
-                    label("Many downloads don't need this. Instagram, private Facebook and "
-                          "X posts, Vimeo videos that ask for a login, and YouTube when it "
-                          "asks you to confirm you're not a bot, need you to "
-                          "be logged in: choose the browser where you're logged in and "
-                          "Clipnest will use that login. Only browsers installed on this PC "
-                          "are listed. Firefox works most reliably; Chrome and Edge often "
-                          "lock their logins on Windows. Close the browser first if "
-                          "downloads fail.", "Small", wrap=True),
-                    14, hbox(self.browser, None)),
-            20,
-            section("General", auto_paste, 10, auto_update),
-            20,
-            section("Download engine",
-                    engine_row,
-                    10,
+                    label("Most downloads don't need this. Instagram, private Facebook and X posts, "
+                          "Vimeo, and YouTube when it asks you to confirm you're not a bot need you "
+                          "to be logged in: choose the browser where you're logged in.",
+                          "Small", wrap=True),
+                    12, hbox(self.browser, None), 10, self.browser_warning),
+            18,
+            section("General", *general),
+            18,
+            section("Download engine", engine_row, 10,
                     label("Clipnest uses yt-dlp, FFmpeg and Deno (all free and open source) to "
                           "download and convert files.", "Small", wrap=True)),
-            20,
+            18,
             section(f"About Clipnest {__version__}",
-                    label("Made by <b>Vishnu VK</b>, built with <b>Claude Code</b>.", None),
-                    8,
+                    label("Made by <b>Vishnu VK</b>, built with <b>Claude Code</b>.", None), 8,
                     label("Free and open source. Please download only content you have "
                           "the right to save, and respect creators' copyright.", "Small", wrap=True)),
             None,
         )
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(scroll_page(page_container(lay)))
+        root.addWidget(scroll(centered(lay, 820, (30, 30, 30, 30))))
+        self.on_browser()
+
+    def on_browser(self) -> None:
+        key = self.browser.currentData() or ""
+        self.settings.set("cookies_browser", key)
+        self.browser_warning.setVisible(engine.IS_WINDOWS and key in CHROMIUM)
 
     def change_dir(self, fmt: str) -> None:
         d = QFileDialog.getExistingDirectory(self, "Save downloads to", self.settings[f"{fmt}_dir"])
@@ -943,56 +1280,53 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Clipnest")
         self.setWindowIcon(theme.app_icon())
-        self.resize(1200, 860)
-        self.setMinimumSize(760, 560)
+        self.resize(1280, 820)
+        self.setMinimumSize(1000, 660)
 
         self.settings = Settings()
         engine.remove_leftovers()
         self.history = History()
         self.manager = DownloadManager(self)
 
-        # Sidebar
-        side = QFrame()
-        side.setObjectName("Sidebar")
-        side.setFixedWidth(240)
+        # Top bar
         logo = QLabel()
-        logo.setPixmap(theme.logo_pixmap(34))
+        logo.setPixmap(theme.logo_pixmap(30))
+        logo.setStyleSheet("background: transparent;")
         brand = label("Clipnest", "Brand")
-        self.nav_download = NavButton("download", "Download")
-        self.nav_history = NavButton("history", "History")
-        self.nav_settings = NavButton("settings", "Settings")
-        nav = QButtonGroup(self)
-        for i, b in enumerate((self.nav_download, self.nav_history, self.nav_settings)):
-            nav.addButton(b, i)
-        self.nav_download.setChecked(True)
-        engine_box = QFrame()
-        engine_box.setObjectName("EngineBox")
-        self.engine_icon = icon_label("clock", theme.MUTED, 14)
-        self.engine_label = label("Setting up…", "EngineText", wrap=True)
-        engine_box.setLayout(hbox(self.engine_icon, 8, self.engine_label, margins=(12, 10, 12, 10)))
-        side.setLayout(vbox(
-            hbox(logo, 12, brand, None, margins=(12, 4, 12, 24)),
-            self.nav_download, 4, self.nav_history, 4, self.nav_settings, None, engine_box,
-            margins=(12, 20, 12, 16),
-        ))
+        self.tab_download = TabButton("download", "Download")
+        self.tab_history = TabButton("history", "History")
+        self.tab_settings = TabButton("settings", "Settings")
+        tabs = QButtonGroup(self)
+        for i, b in enumerate((self.tab_download, self.tab_history, self.tab_settings)):
+            tabs.addButton(b, i)
+        self.tab_download.setChecked(True)
+        tab_box = frame("Tabs", hbox(self.tab_download, 2, self.tab_history, 2, self.tab_settings,
+                                     margins=(4, 4, 4, 4)))
+        tab_box.setFixedHeight(44)
+        self.status_dot = QLabel()
+        self.status_dot.setFixedSize(8, 8)
+        self.status_text = label("Setting up…", "StatusText")
+        status = frame("StatusPill", hbox(self.status_dot, 8, self.status_text, margins=(12, 0, 14, 0)))
+        status.setFixedHeight(30)
+        top = frame("TopBar", hbox(logo, 10, brand, 22, tab_box, None, status, margins=(20, 0, 20, 0)))
+        top.setFixedHeight(62)
 
         # Pages
         self.download_page = DownloadPage(self.settings, self.manager)
         self.history_page = HistoryPage(self.history)
         self.settings_page = SettingsPage(self.settings)
         self.stack = QStackedWidget()
-        self.stack.setObjectName("Content")
         for p in (self.download_page, self.history_page, self.settings_page):
             self.stack.addWidget(p)
-        nav.idClicked.connect(self.stack.setCurrentIndex)
-        nav.idClicked.connect(lambda i: i == 1 and self.history_page.reload())
+        tabs.idClicked.connect(self.stack.setCurrentIndex)
+        tabs.idClicked.connect(lambda i: i == 1 and self.history_page.reload())
 
         central = QWidget()
         central.setObjectName("Content")
-        central.setLayout(hbox(side, self.stack))
+        central.setLayout(vbox(top, self.stack))
         self.setCentralWidget(central)
 
-        self.manager.active_count_changed.connect(self.nav_download.set_badge)
+        self.manager.active_count_changed.connect(self.tab_download.set_badge)
         self.manager.job_finished.connect(self.on_job_finished)
         self.settings_page.update_requested.connect(lambda: self.run_engine(update=True))
 
@@ -1005,6 +1339,7 @@ class MainWindow(QMainWindow):
         first_time = bool(engine.missing_parts())
         self.engine_worker = EngineWorker(update, self)
         if first_time:
+            self.download_page.set_engine_progress("Setting up the download engine", -1)
             self.engine_worker.progress.connect(self.download_page.set_engine_progress)
         else:
             self.download_page.set_engine_ready(True)
@@ -1019,7 +1354,7 @@ class MainWindow(QMainWindow):
         self.engine_worker = None
         if ok and not engine.missing_parts():
             self.download_page.set_engine_ready(True)
-            self.set_engine_status("Download engine up to date", busy=False,
+            self.set_engine_status("Engine up to date", busy=False,
                                    detail=f"yt-dlp {msg}" if msg else "")
         elif engine.missing_parts():
             self.download_page.set_engine_ready(False, msg or "unknown error")
@@ -1031,14 +1366,9 @@ class MainWindow(QMainWindow):
                                    detail=f"yt-dlp {engine.ytdlp_version() or ''}")
 
     def set_engine_status(self, text: str, busy: bool, detail: str = "", error: bool = False) -> None:
-        if busy:
-            name, color = "clock", theme.MUTED
-        elif error:
-            name, color = "alert", theme.RED
-        else:
-            name, color = "check", theme.GREEN
-        self.engine_icon.setPixmap(theme.icon(name, color, 14, 2.5).pixmap(14, 14))
-        self.engine_label.setText(text)
+        color = theme.RED if error else theme.AMBER if busy else theme.GREEN
+        self.status_dot.setStyleSheet(f"background: {color}; border-radius: 4px;")
+        self.status_text.setText(text)
         self.settings_page.set_engine_status(text + (f" · {detail}" if detail else ""), busy)
 
     def on_job_finished(self, job: Job) -> None:
@@ -1109,19 +1439,47 @@ def _dark_title_bar(window: QWidget) -> None:
             if ctypes.windll.dwmapi.DwmSetWindowAttribute(
                     hwnd, attr, ctypes.byref(value), ctypes.sizeof(value)) == 0:
                 break
-        caption = ctypes.c_int(0x001C1516)   # BG colour as COLORREF (0x00BBGGRR)
+        caption = ctypes.c_int(0x00130C0D)   # BG colour as COLORREF (0x00BBGGRR)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(caption), 4)
     except Exception:
         pass
 
 
-def _write_check_icon() -> str:
-    path = engine.data_dir() / "ui" / "check.svg"
-    path.parent.mkdir(exist_ok=True)
-    path.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-                    'stroke="#ffffff" stroke-width="3" stroke-linecap="round" '
-                    'stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>')
-    return path.as_posix()
+def _write_ui_icons() -> dict[str, str]:
+    """Small images the stylesheet needs (check mark, switches), as files."""
+    folder = engine.data_dir() / "ui"
+    folder.mkdir(exist_ok=True)
+    files = {
+        "check.svg": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+                     'stroke="#ffffff" stroke-width="3" stroke-linecap="round" '
+                     'stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+        "switch-on.svg": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 20">'
+                         '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+                         f'<stop offset="0" stop-color="{theme.ACCENT}"/><stop offset="1" '
+                         f'stop-color="{theme.ACCENT_2}"/></linearGradient></defs>'
+                         '<rect width="36" height="20" rx="10" fill="url(#g)"/>'
+                         '<circle cx="26" cy="10" r="7" fill="#fff"/></svg>',
+        "switch-off.svg": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 20">'
+                          '<rect width="36" height="20" rx="10" fill="#3A3848"/>'
+                          '<circle cx="10" cy="10" r="7" fill="#fff"/></svg>',
+    }
+    out = {}
+    for name, svg in files.items():
+        path = folder / name
+        path.write_text(svg, encoding="utf-8")
+        out[name] = path.as_posix()
+    return out
+
+
+def app_stylesheet() -> str:
+    sheet = theme.STYLESHEET
+    for name, path in _write_ui_icons().items():
+        sheet = sheet.replace(f":/clipnest/{name}", path)
+    return sheet
+
+
+def _write_check_icon() -> str:          # kept for older helper scripts
+    return _write_ui_icons()["check.svg"]
 
 
 def main() -> int:
@@ -1137,7 +1495,7 @@ def main() -> int:
     font.setPixelSize(14)
     app.setFont(font)
     app.setStyle("Fusion")
-    app.setStyleSheet(theme.STYLESHEET.replace(":/clipnest/check.svg", _write_check_icon()))
+    app.setStyleSheet(app_stylesheet())
     win = MainWindow()
     win.show()
     return app.exec()
